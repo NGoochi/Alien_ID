@@ -1,0 +1,19 @@
+[
+ {
+  "ok": false,
+  "model": "qwen/qwen3.8-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "model-error",
+    "s": 4.5
+   }
+  ],
+  "tokens": 0,
+  "cost": 0.0,
+  "error": "qwen/qwen3.8-flash: Provider returned error",
+  "id": "4ba469fd",
+  "prompt": "divide a curve into N points",
+  "wall_s": 4.5
+ }
+]

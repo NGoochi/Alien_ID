@@ -1,0 +1,267 @@
+[
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 2.7
+   }
+  ],
+  "tokens": 2293,
+  "cost": 0.00039,
+  "report": {
+   "id": "252ed3c9",
+   "status": "ok",
+   "ms": 14.2,
+   "out": {
+    "points": "list[11] Point3d; bbox 0,-3,0->15,3.857,0; e.g. 0,0,0",
+    "tangents": "list[11] Vector3d; e.g. <0.53,0.848,0>"
+   }
+  },
+  "id": "252ed3c9",
+  "script": "divide_curve_n_points_04.py",
+  "prompt": "divide a curve into N points",
+  "wall_s": 2.7
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 13.3
+   }
+  ],
+  "tokens": 4892,
+  "cost": 0.00168,
+  "report": {
+   "id": "8b1eba5c",
+   "status": "ok",
+   "ms": 17.3,
+   "out": {
+    "panels": "list[30] PolylineCurve; bbox 0.199,0.128,0->29.904,19.88,0; e.g. PolylineCurve(len 22.639, closed)",
+    "centers": "list[30] Point3d; bbox 0.763,0.042,0->29.776,18.905,0; e.g. 4.031,16.949,0",
+    "log": "\"sample surface used; built 30 panels from 30 seeds\""
+   }
+  },
+  "id": "8b1eba5c",
+  "script": "voronoi_panel_facade_surface_03.py",
+  "prompt": "a voronoi panel facade on a surface",
+  "wall_s": 13.3
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 7.5
+   }
+  ],
+  "tokens": 2953,
+  "cost": 0.00071,
+  "report": {
+   "id": "e9a3ffee",
+   "status": "ok",
+   "ms": 9.8,
+   "header_warnings": [
+    "'regrouped': unknown type 'tree', treated as object"
+   ],
+   "out": {
+    "regrouped": "tree[4 branches] list[9] float; 1..9; e.g. 1",
+    "flat": "list[9] float; 1..9; e.g. 1"
+   }
+  },
+  "id": "e9a3ffee",
+  "script": "flatten_regroup_tree_branch_03.py",
+  "prompt": "flatten and regroup a tree by branch index",
+  "wall_s": 7.5
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 7.2
+   }
+  ],
+  "tokens": 3105,
+  "cost": 0.00079,
+  "report": {
+   "id": "ff2709c3",
+   "status": "ok",
+   "ms": 21.3,
+   "out": {
+    "contours": "list[9] PolylineCurve; bbox -5,-5,-4->5,5,4; e.g. PolylineCurve(len 18.664, closed)",
+    "levels": "list[9] float; -4..4; e.g. -4"
+   }
+  },
+  "id": "ff2709c3",
+  "script": "contour_mesh_intervals_03.py",
+  "prompt": "contour a mesh at intervals",
+  "wall_s": 7.2
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 8.9
+   }
+  ],
+  "tokens": 3705,
+  "cost": 0.00109,
+  "report": {
+   "id": "08d759ab",
+   "status": "ok",
+   "ms": 15.3,
+   "out": {
+    "rings": "list[5] ArcCurve; bbox -9,-9,0->9,9,0; e.g. ArcCurve(len 56.549, closed)",
+    "log": "\"step 1: ok, length 56.549\\nstep 2: ok, length 50.265\\nstep 3: ok, length 43.982\\nstep 4: ok, length 37.699\\nstep 5: ok, length 31.416\""
+   }
+  },
+  "id": "08d759ab",
+  "script": "offset_closed_curve_inwards_03.py",
+  "prompt": "offset a closed curve inwards N times",
+  "wall_s": 8.9
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 8.4
+   }
+  ],
+  "tokens": 3392,
+  "cost": 0.00094,
+  "report": {
+   "id": "af61f491",
+   "status": "ok",
+   "ms": 22.6,
+   "out": {
+    "colors": "list[5] Color; e.g. #4AB9F5",
+    "areas": "list[5] float; 12.566..113.097; e.g. 12.566",
+    "ranked": "list[5] Brep; bbox -1,-3,-3->15,3,3; e.g. Brep(1 faces, solid)"
+   }
+  },
+  "id": "af61f491",
+  "script": "random_colour_breps_area_03.py",
+  "prompt": "random-colour breps by area",
+  "wall_s": 8.4
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 11.8
+   }
+  ],
+  "tokens": 3957,
+  "cost": 0.00122,
+  "report": {
+   "id": "18812415",
+   "status": "ok",
+   "ms": 19.2,
+   "out": {
+    "labels": "list[5] TextDot; bbox 500,300,10->2900,1100,10; e.g. Rhino.Geometry.TextDot",
+    "names": "list[5] str; e.g. \"P-001\"",
+    "log": "\"numbered 5 panels from P-001 to P-005\""
+   }
+  },
+  "id": "18812415",
+  "script": "number_panels_fabrication_03.py",
+  "prompt": "number panels for fabrication",
+  "wall_s": 11.8
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 7.6
+   }
+  ],
+  "tokens": 3270,
+  "cost": 0.00087,
+  "report": {
+   "id": "3cf1851b",
+   "status": "ok",
+   "ms": 17.2,
+   "out": {
+    "circles": "list[25] NurbsCurve; bbox -2.2,-2.2,0->18.434,17.735,0; e.g. NurbsCurve(len 11.741, closed)",
+    "radii": "list[25] float; 1..3; e.g. 1.869"
+   }
+  },
+  "id": "3cf1851b",
+  "script": "attractor_point_scaling_circles_03.py",
+  "prompt": "attractor-point scaling of circles",
+  "wall_s": 7.6
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 6.5
+   }
+  ],
+  "tokens": 3202,
+  "cost": 0.00084,
+  "report": {
+   "id": "70f93808",
+   "status": "ok",
+   "ms": 16.4,
+   "out": {
+    "dimensions": "\"0: X 10.000  Y 4.000  Z 6.000\""
+   }
+  },
+  "id": "70f93808",
+  "script": "bounding_box_dimensions_as_03.py",
+  "prompt": "bounding-box dimensions as text",
+  "wall_s": 6.5
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 8.2
+   }
+  ],
+  "tokens": 3248,
+  "cost": 0.00086,
+  "report": {
+   "id": "3d46c098",
+   "status": "ok",
+   "ms": 16.9,
+   "out": {
+    "breps": "Brep(1 faces)",
+    "log": "\"using sample circles | lofted 1 brep(s)\""
+   }
+  },
+  "id": "3d46c098",
+  "script": "loft_between_sorted_curves_03.py",
+  "prompt": "loft between sorted curves",
+  "wall_s": 8.2
+ }
+]

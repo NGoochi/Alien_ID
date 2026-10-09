@@ -1,0 +1,32 @@
+# Describe-a-node test
+
+The brief's gate for describe-a-node: 8 of 10 test prompts must give a working node within 4 attempts on the cheap
+default model. `suite.py` runs the 10 prompts through Alien's MCP `generate` tool (the same retry loop as the Describe
+panel) and saves one JSON file per model.
+
+```
+# Rhino + Grasshopper open, Alien loaded, a script repository set
+python3 suite.py results-YYYY-MM-DD anthropic/claude-haiku-5.5 openai/gpt-6-luna
+```
+
+"Working" here means the node ran without error, assigned every output, and produced non-empty output. Whether it did
+*what was asked* still needs a person to read the scripts.
+
+## 2026-10-09: gate passed
+
+| Model | Working | First try | Avg attempts | Cost / node | Avg time |
+|---|---|---|---|---|---|
+| anthropic/claude-haiku-5.5 (now default) | 10/10 | 10/10 | 1.0 | US$0.0009 | 8 s |
+| openai/gpt-6-luna | 10/10 | 9/10 | 1.1 | US$0.0004 | 7 s |
+| deepseek/deepseek-v4.1-flash | 10/10 | 7/10 | 1.3 | US$0.0032 | 14 s |
+| qwen/qwen3.8-flash | — | — | — | — | OpenRouter "provider returned error"; run stopped |
+
+Every failed first attempt (4 of 30) was fixed by the loop: a missing `import`, a `None` in arithmetic, an invented
+`rg.CircleCurve`, an undefined `ColorFromHSV`.
+
+Changes after this run: the default model became Claude Haiku 5.5; the system prompt now asks for RhinoCommon's
+built-in methods (DeepSeek had hand-written a 100-line mesh contourer instead of calling `Mesh.CreateContourCurves`;
+after the change it wrote 37 lines using the built-in, on the first try).
+
+`results-2026-10-09/scripts/` holds the generated scripts. Files without a suffix are DeepSeek's, `_02` is GPT-6
+Luna's and `_03` is Haiku's; the rest are from later spot checks.

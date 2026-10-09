@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net7.0 loads on Rhino 8's .NET 7 and .NET 8 runtimes -->
+    <TargetFramework>net7.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <TargetExt>.gha</TargetExt>
+    <AssemblyName>Alien</AssemblyName>
+    <RootNamespace>Alien</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>2.0.0</Version>
+    <Title>Alien</Title>
+    <Description>Grasshopper live-code node (Python 3 / C#) driven by AI agents over MCP</Description>
+    <!-- NU1701: net48 reference assembly package; NETSDK1138: net7 EOL; CS1701/1702: Rhino assembly version unification -->
+    <NoWarn>NU1701;NETSDK1138;CS1701;CS1702;CA1416</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Rhino install: RhinoCommon, Grasshopper and RhinoCode (Rhino.Runtime.Code is not on NuGet) -->
+  <PropertyGroup>
+    <RhinoSystemDir Condition="'$(RhinoSystemDir)' == '' AND $([MSBuild]::IsOSPlatform('Windows'))">C:\Program Files\Rhino 8\System</RhinoSystemDir>
+    <RhinoGhDir Condition="'$(RhinoGhDir)' == '' AND $([MSBuild]::IsOSPlatform('Windows'))">$(RhinoSystemDir)\..\Plug-ins\Grasshopper</RhinoGhDir>
+    <RhinoSystemDir Condition="'$(RhinoSystemDir)' == '' AND $([MSBuild]::IsOSPlatform('OSX'))">/Applications/Rhino 8.app/Contents/Frameworks/RhCore.framework/Versions/A/Resources</RhinoSystemDir>
+    <RhinoGhDir Condition="'$(RhinoGhDir)' == '' AND $([MSBuild]::IsOSPlatform('OSX'))">/Applications/Rhino 8.app/Contents/Frameworks/RhCore.framework/Versions/A/Resources/ManagedPlugIns/GrasshopperPlugin.rhp</RhinoGhDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="RhinoCommon"><HintPath>$(RhinoSystemDir)/RhinoCommon.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Rhino.UI"><HintPath>$(RhinoSystemDir)/Rhino.UI.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Eto"><HintPath>$(RhinoSystemDir)/Eto.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(RhinoSystemDir)/Newtonsoft.Json.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Rhino.Runtime.Code"><HintPath>$(RhinoSystemDir)/Rhino.Runtime.Code.dll</HintPath><Private>False</Private></Reference>
+    <!-- Registrar.StartScriptingLanguages: public but undocumented; version-sensitive -->
+    <Reference Include="RhinoCodePlatform.Rhino3D"><HintPath>$(RhinoSystemDir)/RhinoCodePlatform.Rhino3D.dll</HintPath><Private>False</Private></Reference>
+    <!-- Roslyn (shipped with Rhino) — used only to parse C# scripts for top-level declarations -->
+    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(RhinoSystemDir)/Microsoft.CodeAnalysis.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(RhinoSystemDir)/Microsoft.CodeAnalysis.CSharp.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Grasshopper"><HintPath>$(RhinoGhDir)/Grasshopper.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="GH_IO"><HintPath>$(RhinoGhDir)/GH_IO.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
+    <!-- Grasshopper menus are WinForms (ToolStripDropDown); compile against the net48 reference assembly -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" ExcludeAssets="all" GeneratePathProperty="true" />
+    <Reference Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\System.Windows.Forms.dll" Private="False" />
+  </ItemGroup>
+
+  <!-- Agent guide is served by the MCP `docs` tool -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\docs\AGENT_GUIDE.md" LogicalName="Alien.AGENT_GUIDE.md" />
+    <!-- The Alien panel's page -->
+    <EmbeddedResource Include="Ui\pane.html" LogicalName="Alien.pane.html" />
+    <!-- The preloaded suite, copied into <repository>/suite on first use -->
+    <EmbeddedResource Include="..\suite\*.py" LogicalName="Alien.suite.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Post-build: deploy to the Grasshopper Libraries folder. Rhino must be closed (GH locks the .gha). -->
+  <PropertyGroup>
+    <GH_Libraries Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(APPDATA)\Grasshopper\Libraries</GH_Libraries>
+    <GH_Libraries Condition="$([MSBuild]::IsOSPlatform('OSX'))">$(HOME)/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (b45a29b1-4343-4035-989e-044e8580d9cf)/Libraries</GH_Libraries>
+  </PropertyGroup>
+
+  <Target Name="DeployToGrasshopper" AfterTargets="Build" Condition="'$(GH_Libraries)' != '' AND Exists('$(GH_Libraries)')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GH_Libraries)" ContinueOnError="true" Retries="0">
+      <Output TaskParameter="CopiedFiles" ItemName="_AlienDeployed" />
+    </Copy>
+    <Message Importance="High" Condition="'@(_AlienDeployed)' != ''" Text="-> Deployed $(TargetFileName) to $(GH_Libraries)" />
+    <Warning Condition="'@(_AlienDeployed)' == ''" Text="Alien.gha was NOT deployed (is Rhino running?). Grasshopper will load the old build." />
+  </Target>
+
+</Project>

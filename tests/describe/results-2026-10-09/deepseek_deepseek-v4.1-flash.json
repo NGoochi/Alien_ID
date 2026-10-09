@@ -1,0 +1,287 @@
+[
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 6.5
+   }
+  ],
+  "tokens": 2172,
+  "cost": 0.00054,
+  "report": {
+   "id": "c2b4a8b6",
+   "status": "ok",
+   "ms": 39.3,
+   "out": {
+    "points": "list[9] Point3d; bbox -9.397,-9.848,0->10,9.848,0; e.g. 10,0,0",
+    "params": "list[9] float; 0..5.581; e.g. 0",
+    "tangents": "list[9] Vector3d; e.g. <-2.466e-17,1,0>"
+   }
+  },
+  "id": "c2b4a8b6",
+  "script": "divide_curve_n_points_02.py",
+  "prompt": "divide a curve into N points",
+  "wall_s": 6.6
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 17.1
+   }
+  ],
+  "tokens": 5438,
+  "cost": 0.00535,
+  "report": {
+   "id": "97bca7c5",
+   "status": "ok",
+   "ms": 43.3,
+   "out": {
+    "panels": "list[30] PolylineCurve; bbox 0.465,0.475,0->11.668,7.134,0; e.g. PolylineCurve(len 0.466, closed)",
+    "centers": "list[30] Point3d; bbox 0.514,0.514,0->11.647,7.095,0; e.g. 1.405,6.41,0",
+    "count": "30"
+   }
+  },
+  "id": "97bca7c5",
+  "script": "voronoi_panel_facade_surface.py",
+  "prompt": "a voronoi panel facade on a surface",
+  "wall_s": 17.1
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 10.3,
+    "problem": "{\"status\":\"error\",\"error\":\"NameError: name 'rg' is not defined\",\"line\":7,\"code\":\"tree = [[rg.Point3d(i, j, 0) for j in range(3)] for i in range(4)]\",\"trace\":\"Traceback (most recent call last):\\n  File \\\"flatten_regroup_tree_branch.py\\\", line 7, in <module>\\n  File \\\"flatten_regroup_tree_branch.py\\\",\u2026"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 1.9
+   }
+  ],
+  "tokens": 4574,
+  "cost": 0.00248,
+  "report": {
+   "id": "1ac6c377",
+   "status": "ok",
+   "ms": 31.6,
+   "out": {
+    "flat": "list[12] Point3d; bbox 0,0,0->3,2,0; e.g. 0,0,0",
+    "regrouped": "tree[3 branches] list[12] Point3d; bbox 0,0,0->3,2,0; e.g. 0,0,0",
+    "branches": "3"
+   }
+  },
+  "id": "1ac6c377",
+  "script": "flatten_regroup_tree_branch.py",
+  "prompt": "flatten and regroup a tree by branch index",
+  "wall_s": 12.3
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 15.6
+   }
+  ],
+  "tokens": 8719,
+  "cost": 0.00929,
+  "report": {
+   "id": "155bcf85",
+   "status": "ok",
+   "ms": 190.6,
+   "out": {
+    "contours": "list[9] PolylineCurve; bbox -5,-5,-4->5,5,4; e.g. PolylineCurve(len 18.757, closed)",
+    "count": "9"
+   }
+  },
+  "id": "155bcf85",
+  "script": "contour_mesh_intervals.py",
+  "prompt": "contour a mesh at intervals",
+  "wall_s": 15.6
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 11.5
+   }
+  ],
+  "tokens": 3032,
+  "cost": 0.00121,
+  "report": {
+   "id": "9bf17d45",
+   "status": "ok",
+   "ms": 33.9,
+   "out": {
+    "curves": "list[5] ArcCurve; bbox -9,-9,0->9,9,0; e.g. ArcCurve(len 56.549, closed)",
+    "areas": "list[5] float; 78.54..254.469; e.g. 254.469"
+   }
+  },
+  "id": "9bf17d45",
+  "script": "offset_closed_curve_inwards.py",
+  "prompt": "offset a closed curve inwards N times",
+  "wall_s": 11.5
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 20.3,
+    "problem": "{\"status\":\"error\",\"error\":\"TypeError: bad operand type for unary -: 'NoneType'\",\"line\":40,\"code\":\"hues[idx] = (base + rng.uniform(-jitter, jitter)) % 1.0\",\"trace\":\"Traceback (most recent call last):\\n  File \\\"random_colour_breps_area.py\\\", line 40, in <module>\\nTypeError: bad operand type for unary \u2026"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 6.6
+   }
+  ],
+  "tokens": 6997,
+  "cost": 0.00487,
+  "report": {
+   "id": "0fe0fe40",
+   "status": "ok",
+   "ms": 20.9,
+   "out": {
+    "breps": "list[3] Brep; bbox 0,0,0->2,3,1; e.g. Brep(6 faces, solid)",
+    "colors": "list[3] Color; e.g. #F254BC",
+    "info": "\"brep 0  area 6.000  rgb(242,84,188)\\nbrep 1  area 10.000  rgb(84,143,242)\\nbrep 2  area 14.000  rgb(242,159,84)\""
+   }
+  },
+  "id": "0fe0fe40",
+  "script": "random_colour_breps_area.py",
+  "prompt": "random-colour breps by area",
+  "wall_s": 26.9
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 21.3
+   }
+  ],
+  "tokens": 6295,
+  "cost": 0.00415,
+  "report": {
+   "id": "d4132f50",
+   "status": "ok",
+   "ms": 21.3,
+   "out": {
+    "panels": "list[6] Brep; bbox 0,-96,0->392,80,3; e.g. Brep(6 faces, solid)",
+    "outlines": "list[6] NurbsCurve; bbox 0,-96,0->392,80,0; e.g. NurbsCurve(len 400, closed)",
+    "labels": "list[27] NurbsCurve; bbox 49,-76,0->343,60,0; e.g. NurbsCurve(len 34.4, closed)",
+    "report": "\"6 panels, 27 label curves\""
+   }
+  },
+  "id": "d4132f50",
+  "script": "number_panels_fabrication.py",
+  "prompt": "number panels for fabrication",
+  "wall_s": 21.3
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 7.8,
+    "problem": "{\"status\":\"error\",\"error\":\"AttributeError: CircleCurve\",\"line\":9,\"code\":\"circles = [rg.CircleCurve(rg.Circle(rg.Plane.WorldXY, rg.Point3d(i * 8, j * 8, 0), 2.0))\",\"trace\":\"Traceback (most recent call last):\\n  File \\\"attractor_point_scaling_circles.py\\\", line 9, in <module>\\n  File \\\"attractor_point\u2026"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 3.2
+   }
+  ],
+  "tokens": 4851,
+  "cost": 0.00106,
+  "report": {
+   "id": "a1c5c01f",
+   "status": "ok",
+   "ms": 32.6,
+   "out": {
+    "curves": "list[25] NurbsCurve; bbox -19.14,-19.14,0->19.392,18.535,0; e.g. NurbsCurve(len 17.882, closed)",
+    "scales": "list[25] float; 0.3..1.808; e.g. 1.423"
+   }
+  },
+  "id": "a1c5c01f",
+  "script": "attractor_point_scaling_circles.py",
+  "prompt": "attractor-point scaling of circles",
+  "wall_s": 11.0
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 9.0
+   }
+  ],
+  "tokens": 2676,
+  "cost": 0.001,
+  "report": {
+   "id": "4a0c6f6a",
+   "status": "ok",
+   "ms": 17.1,
+   "out": {
+    "text": "\"10.00 x 5.00 x 3.00\"",
+    "box": "Box(0,0,0->10,5,3)"
+   }
+  },
+  "id": "4a0c6f6a",
+  "script": "bounding_box_dimensions_as.py",
+  "prompt": "bounding-box dimensions as text",
+  "wall_s": 9.0
+ },
+ {
+  "ok": true,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 12.0
+   }
+  ],
+  "tokens": 3395,
+  "cost": 0.00218,
+  "report": {
+   "id": "3e882b28",
+   "status": "ok",
+   "ms": 25.4,
+   "out": {
+    "loft": "Brep(1 faces)",
+    "ordered": "list[3] NurbsCurve; bbox -8,-8,0->8,8,10; e.g. NurbsCurve(len 37.699, closed)",
+    "count": "3"
+   }
+  },
+  "id": "3e882b28",
+  "script": "loft_between_sorted_curves.py",
+  "prompt": "loft between sorted curves",
+  "wall_s": 12.0
+ }
+]

@@ -1,0 +1,15 @@
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+.DS_Store
+*.log
+__pycache__/
+
+# never commit keys or caches (scripts' .alien/ holds history and image caches)
+settings.json
+.env*
+.alien/
+*.3dmbak
+*.ghbak

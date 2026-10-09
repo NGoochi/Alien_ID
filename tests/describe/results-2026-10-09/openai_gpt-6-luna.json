@@ -1,0 +1,273 @@
+[
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 4.8
+   }
+  ],
+  "tokens": 1618,
+  "cost": 0.00036,
+  "report": {
+   "id": "7500d15f",
+   "status": "ok",
+   "ms": 16.1,
+   "out": {
+    "points": "list[6] float; 0..10; e.g. 0"
+   }
+  },
+  "id": "7500d15f",
+  "script": "divide_curve_n_points_03.py",
+  "prompt": "divide a curve into N points",
+  "wall_s": 4.8
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 10.5
+   }
+  ],
+  "tokens": 2410,
+  "cost": 0.00061,
+  "report": {
+   "id": "11bac246",
+   "status": "ok",
+   "ms": 20.4,
+   "out": {
+    "panels": "list[20] PolylineCurve; bbox 0,0,0->10,6,0; e.g. PolylineCurve(len 7.143, closed)",
+    "seeds": "list[20] Point3d; bbox 1,0.75,0->9.36,5.25,0; e.g. 1,0.75,0",
+    "used_surface": "Brep(1 faces)"
+   }
+  },
+  "id": "11bac246",
+  "script": "voronoi_panel_facade_surface_02.py",
+  "prompt": "a voronoi panel facade on a surface",
+  "wall_s": 10.5
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 6.9
+   }
+  ],
+  "tokens": 1602,
+  "cost": 0.00021,
+  "report": {
+   "id": "56249d0f",
+   "status": "ok",
+   "ms": 17.6,
+   "out": {
+    "flat": "list[9] int; 1..9; e.g. 1",
+    "regrouped": "tree[4 branches] list[9] int; 1..9; e.g. 1"
+   }
+  },
+  "id": "56249d0f",
+  "script": "flatten_regroup_tree_branch_02.py",
+  "prompt": "flatten and regroup a tree by branch index",
+  "wall_s": 6.9
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 9.5
+   }
+  ],
+  "tokens": 2269,
+  "cost": 0.00055,
+  "report": {
+   "id": "677263a8",
+   "status": "ok",
+   "ms": 27.1,
+   "out": {
+    "contours": "list[3] PolylineCurve; bbox 0,0,0->2,2,2; e.g. PolylineCurve(len 8, closed)",
+    "planes": "list[3] Plane; bbox 0,0,0->0,0,2; e.g. Plane(o 0,0,0, z <0,0,1>)",
+    "count": "3",
+    "status": "\"Created 3 contour curve(s).\""
+   }
+  },
+  "id": "677263a8",
+  "script": "contour_mesh_intervals_02.py",
+  "prompt": "contour a mesh at intervals",
+  "wall_s": 9.5
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 7.3
+   }
+  ],
+  "tokens": 1904,
+  "cost": 0.00036,
+  "report": {
+   "id": "b0102073",
+   "status": "ok",
+   "ms": 20.3,
+   "out": {
+    "result": "list[5] ArcCurve; bbox -15,-15,0->15,15,0; e.g. ArcCurve(len 69.115, closed)",
+    "log": "\"Created 5 inward offset(s).\""
+   }
+  },
+  "id": "b0102073",
+  "script": "offset_closed_curve_inwards_02.py",
+  "prompt": "offset a closed curve inwards N times",
+  "wall_s": 7.3
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 7.3,
+    "problem": "{\"status\":\"error\",\"error\":\"NameError: name 'ColorFromHSV' is not defined\",\"line\":30,\"code\":\"colors.append(ColorFromHSV(hue, saturation, value))\",\"trace\":\"Traceback (most recent call last):\\n  File \\\"random_colour_breps_area_02.py\\\", line 30, in <module>\\nNameError: name 'ColorFromHSV' is not defined\u2026"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 3.5
+   }
+  ],
+  "tokens": 4302,
+  "cost": 0.00073,
+  "report": {
+   "id": "55cece65",
+   "status": "ok",
+   "ms": 34.1,
+   "out": {
+    "geometry": "Brep(1 faces, solid)",
+    "colors": "#C5A212",
+    "areas": "50.265"
+   }
+  },
+  "id": "55cece65",
+  "script": "random_colour_breps_area_02.py",
+  "prompt": "random-colour breps by area",
+  "wall_s": 10.8
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 6.4
+   }
+  ],
+  "tokens": 1829,
+  "cost": 0.00033,
+  "report": {
+   "id": "b16c9f6b",
+   "status": "ok",
+   "ms": 16.0,
+   "out": {
+    "panels": "list[3] NurbsCurve; bbox 0,0,0->34,6,0; e.g. NurbsCurve(len 32, closed)",
+    "numbers": "list[3] int; 1..3; e.g. 1",
+    "label_points": "list[3] Point3d; bbox 5,3,0->29,3,0; e.g. 5,3,0",
+    "labels": "list[3] str; e.g. \"1\""
+   }
+  },
+  "id": "b16c9f6b",
+  "script": "number_panels_fabrication_02.py",
+  "prompt": "number panels for fabrication",
+  "wall_s": 6.4
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 5.8
+   }
+  ],
+  "tokens": 1747,
+  "cost": 0.00028,
+  "report": {
+   "id": "e00fc55b",
+   "status": "ok",
+   "ms": 13.8,
+   "out": {
+    "result": "Rhino.Geometry.Circle",
+    "scales": "1.55"
+   }
+  },
+  "id": "e00fc55b",
+  "script": "attractor_point_scaling_circles_02.py",
+  "prompt": "attractor-point scaling of circles",
+  "wall_s": 5.8
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 4.9
+   }
+  ],
+  "tokens": 1698,
+  "cost": 0.00026,
+  "report": {
+   "id": "4c53ca85",
+   "status": "ok",
+   "ms": 13.8,
+   "out": {
+    "dimensions": "\"No valid geometry\""
+   }
+  },
+  "id": "4c53ca85",
+  "script": "bounding_box_dimensions_as_02.py",
+  "prompt": "bounding-box dimensions as text",
+  "wall_s": 4.9
+ },
+ {
+  "ok": true,
+  "model": "openai/gpt-6-luna",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 6.3
+   }
+  ],
+  "tokens": 1814,
+  "cost": 0.00032,
+  "report": {
+   "id": "4ec3e6ce",
+   "status": "ok",
+   "ms": 14.6,
+   "out": {
+    "sorted_curves": "list[3] NurbsCurve; bbox -2,-2,0->2,2,4; e.g. NurbsCurve(len 12.566, closed)",
+    "loft": "Brep(1 faces)",
+    "log": "\"Loft created from 3 sorted curves.\""
+   }
+  },
+  "id": "4ec3e6ce",
+  "script": "loft_between_sorted_curves_02.py",
+  "prompt": "loft between sorted curves",
+  "wall_s": 6.3
+ }
+]
