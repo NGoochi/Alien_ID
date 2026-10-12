@@ -22,10 +22,16 @@ First 200 lines. Python uses `#`, C# uses `//`. Several `NODE_INPUTS` lines are 
 - Token: `name:type [| "description"] [min= max= step= decimals= default= options="a|b|c"]`. Commas inside quotes are fine.
 - Unwired inputs get a control on the node: numbers a slider (give `min`/`max`, else a range is guessed from the default),
   `bool` a switch, `str` a text field, `str` with `options=` a dropdown. Give sensible ranges and defaults: they are the UI.
+- `bool` with the word `button` (`go:bool | "build it" button`) is a momentary button: true for one solve when clicked,
+  false otherwise, never saved. Use it for anything slow, paid or with side effects (model calls, fetching again,
+  writing to the Rhino document), so re-solving never repeats it. Agents press it with `set_values {"go": true}`.
 - Access: `list[T]` / `T[]` / `T:list` → list; `tree[T]` → tree (arrives as a list of branch lists); default item.
 - `default=` accepts numbers, `true/false`, `"text"`, `[x,y,z]`.
 - Names are pin identities: renaming a pin drops its wires. Keep names stable.
 - Outputs are generic; a type after `:` is documentation only.
+- After the header: `# CATEGORY: Geometry` (library group: Site & context, Massing & objects, Entourage, Materials,
+  Views & drawings, Data & lists, Geometry, Analysis, Utilities), then one comment line saying what the node does (the
+  library listing). Without a CATEGORY line the library sorts the node itself (model, else keywords).
 
 ## Types
 `float int bool str Color Interval Point3d Vector3d Plane Line Circle Arc Box Rectangle3d Curve Surface Brep Mesh SubD Geometry Transform object`
@@ -39,6 +45,10 @@ Unknown types become `object` (header warning). Values arrive as RhinoCommon/.NE
 - A list becomes a GH list; a list of lists becomes a data tree (one branch per sub-list).
 - `Polyline` outputs are converted to `PolylineCurve` automatically.
 - Item-access inputs fed with lists make Grasshopper run the script once per item (`runs` in the report).
+- Python only: set `NODE_CONTROLS = {"width": {"min": 0.35, "max": 1.45, "value": 0.72, "decimals": 2, "key": "..."}}`
+  to retune a slider after a run: its range, the value it shows while unset (e.g. "0 = as built" showing the built
+  size), and a `key` naming what the value belongs to. When a run reports a different key, values set under the old
+  one are cleared and the node solves again. An input set to its header default counts as unset.
 
 ## Python
 - Real CPython 3.9 (Rhino 8). f-strings, dataclasses, type hints all fine. `#! python 2` opts into legacy IronPython.

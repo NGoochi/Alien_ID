@@ -196,8 +196,8 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                 Schema(("topic", Str("Topic name"), false)),
                 Docs),
 
-            new Tool("repo", "Script repository: show root and scripts, or set the root folder.",
-                Schema(("set", Str("New repository folder (created if missing)"), false)),
+            new Tool("repo", "Script repository: show root and scripts, or set the root folder. library=true: nodes by category with descriptions, plus generated assets.",
+                Schema(("set", Str("New repository folder (created if missing)"), false), ("library", Bool("Nodes by category + generated assets"), false)),
                 Repo),
         };
 
@@ -1285,8 +1285,22 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
         {
             var set = a.Value<string>("set");
             if (!string.IsNullOrWhiteSpace(set)) ScriptRepository.SetRoot(set);
-            var scripts = ScriptRepository.ListScripts().ToList();
             var r = new JObject { ["root"] = ScriptRepository.Root };
+            if (a.Value<bool?>("library") == true)
+            {
+                var groups = new JObject();
+                foreach (var n in Library.Nodes().OfType<JObject>().OrderBy(n => Array.FindIndex(Library.Categories, c => c.Key == n.Value<string>("category"))))
+                {
+                    var label = Library.Categories.First(c => c.Key == n.Value<string>("category")).Label;
+                    if (!(groups[label] is JArray list)) groups[label] = list = new JArray();
+                    list.Add(n.Value<string>("path") + (n.Value<string>("description") is string d ? " — " + d : ""));
+                }
+                r["nodes"] = groups;
+                r["assets"] = new JArray(Assets.List(out _).OfType<JObject>().Take(100)
+                    .Select(x => $"{x.Value<string>("kind")}/{x.Value<string>("id")}: {x.Value<string>("name")}" + (x.Value<string>("size") is string sz ? $" ({sz})" : "")));
+                return ToolResult.Json(r);
+            }
+            var scripts = ScriptRepository.ListScripts().ToList();
             r["scripts"] = new JArray(scripts.Take(300));
             if (scripts.Count > 300) r["more"] = scripts.Count - 300;
             return ToolResult.Json(r);

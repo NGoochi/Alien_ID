@@ -4,6 +4,7 @@
 # NODE_INPUTS: smooth:bool | "smooth curves (off: straight segments)" default=true, plane:Plane | "where it stands (default: XZ elevation plane, or XY for plan)"
 # NODE_OUTPUTS: outline:list[Curve] | "silhouette outlines, canopy gaps included", fill:list[Brep] | "filled silhouette", hatch | "solid hatch, for baking"
 # NODE_OUTPUTS: info:str | "prompt, model, cost, scale", image:str | "the generated image file"
+# CATEGORY: Entourage
 # Scale tree: an image model draws a tree in elevation or plan as a silhouette, traced into outlines, a fill and a hatch at true size.
 import Rhino.Geometry as rg
 
@@ -19,6 +20,10 @@ loops, w, h, meta = ag.silhouette(ag.tree_prompt(species, "plan" if plan else "e
                                   int(variant or 0), detail)
 outline, fill, hatch = ag.place(loops, size, plane, "width" if plan else "height", smooth)
 image = meta["path"]
+home = rg.Plane.WorldXY if plan else rg.Plane(rg.Point3d.Origin, rg.Vector3d.XAxis, rg.Vector3d.ZAxis)
+ag.save_asset("%s (%s)" % (species, "plan" if plan else "elevation"), "scale_tree", meta, variant,
+              {"species": species, "height": height, "view": "plan" if plan else "elevation", "spread": spread or 0,
+               "variant": int(variant or 0), "detail": detail, "smooth": bool(smooth)}, outline, hatch, plane, home)
 
 holes = sum(1 for _, hole in loops if hole)
 info = "\n".join([

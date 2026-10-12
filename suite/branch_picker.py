@@ -1,6 +1,7 @@
 # NODE_INPUTS: tree:tree[object] | "data tree to pick from", pick:str | "branches to keep: 0, 2, 4-6, -1 (last), * (all), even, odd" default="0"
 # NODE_INPUTS: flatten:bool | "merge the picked branches into one list" default=false
 # NODE_OUTPUTS: picked | "the picked branches, in the order asked for", rest | "the branches not picked", count:int | "branches picked", branches:str | "every branch: index, size, contents"
+# CATEGORY: Data & lists
 # Branch picker: pick one or several branches of a data tree by index ("0, 2, 4-6", "-1", "*", "even") and pass them through.
 import re
 

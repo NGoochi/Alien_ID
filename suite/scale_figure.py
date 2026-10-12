@@ -4,6 +4,7 @@
 # NODE_INPUTS: plane:Plane | "where the figure stands (default: the XZ elevation plane at the origin)"
 # NODE_OUTPUTS: outline:list[Curve] | "silhouette outlines, holes included", fill:list[Brep] | "filled silhouette", hatch | "solid hatch, for baking"
 # NODE_OUTPUTS: info:str | "prompt, model, cost, scale", image:str | "the generated image file"
+# CATEGORY: Entourage
 # Scale figure: an image model draws a person as a silhouette, traced into outlines, a fill and a hatch at true height for elevations and sections.
 import re
 
@@ -20,6 +21,9 @@ aspect = "4:3" if re.search(r"bike|bicycle|cycl|pram|stroller|dog|bench|wheelcha
 loops, w, h, meta = ag.silhouette(ag.figure_prompt(who, view), aspect, int(variant or 0), detail)
 outline, fill, hatch = ag.place(loops, height, plane, "height", smooth)
 image = meta["path"]
+ag.save_asset("%s (%s)" % (who, view), "scale_figure", meta, variant,
+              {"who": who, "height": height, "view": view, "variant": int(variant or 0), "detail": detail,
+               "smooth": bool(smooth)}, outline, hatch, plane, rg.Plane(rg.Point3d.Origin, rg.Vector3d.XAxis, rg.Vector3d.ZAxis))
 
 holes = sum(1 for _, hole in loops if hole)
 info = "\n".join([

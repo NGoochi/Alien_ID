@@ -17,6 +17,8 @@ namespace Alien.Scripting
         /// <summary>Traceback / diagnostics limited to user frames.</summary>
         public string Trace { get; set; }
         public double Ms { get; set; }
+        /// <summary>The script's NODE_CONTROLS (per-input slider hints) as JSON, or null.</summary>
+        public string Controls { get; set; }
 
         public static RunResult Fail(string error, int? line = null, string trace = null) =>
             new RunResult { Success = false, Error = error, Line = line, Trace = trace };

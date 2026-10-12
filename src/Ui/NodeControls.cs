@@ -9,7 +9,31 @@ using Alien.Scripting;
 
 namespace Alien.Ui
 {
-    public enum ControlKind { None, Slider, Toggle, Choice, Text }
+    public enum ControlKind { None, Slider, Toggle, Button, Choice, Text }
+
+    /// <summary>
+    /// A script's run-time tuning for one input's control (its NODE_CONTROLS entry): a slider range that suits the
+    /// result, the value to show while the input has no manual value, and a key naming what the value belongs to.
+    /// </summary>
+    public sealed class ControlHint
+    {
+        public double? Min, Max, Step;
+        public int? Decimals;
+        public JToken Value;
+        public string Key;
+
+        public static ControlHint From(JToken t)
+        {
+            if (!(t is JObject o)) return null;
+            double? Num(string k) => o[k] != null && (o[k].Type == JTokenType.Float || o[k].Type == JTokenType.Integer) ? o.Value<double>(k) : (double?)null;
+            return new ControlHint
+            {
+                Min = Num("min"), Max = Num("max"), Step = Num("step"),
+                Decimals = o["decimals"]?.Type == JTokenType.Integer ? o.Value<int>("decimals") : (int?)null,
+                Value = o["value"], Key = o["key"]?.ToString(),
+            };
+        }
+    }
 
     /// <summary>
     /// Which control an unwired input gets on the node, and the value plumbing behind it. Values are the node's
@@ -25,7 +49,7 @@ namespace Alien.Ui
                 return d.Type switch
                 {
                     "float" or "int" => ControlKind.Slider,
-                    "bool" => ControlKind.Toggle,
+                    "bool" => d.Button ? ControlKind.Button : ControlKind.Toggle,
                     "str" => d.Choices.Length > 0 ? ControlKind.Choice : ControlKind.Text,
                     _ => ControlKind.None,
                 };
@@ -54,20 +78,23 @@ namespace Alien.Ui
             public string Format(double v) => Integer ? ((long)Math.Round(v)).ToString(Inv) : v.ToString("F" + Decimals, Inv);
         }
 
-        /// <summary>The header's min/max, or a recommended range around the default when the script gives none.</summary>
-        public static SliderRange Range(ParamDef d, double? current)
+        /// <summary>
+        /// The script's run-time range (NODE_CONTROLS), else the header's min/max, else a recommended range around the
+        /// default.
+        /// </summary>
+        public static SliderRange Range(ParamDef d, double? current, ControlHint hint = null)
         {
             bool integer = d.Type == "int";
             double? dv = double.TryParse(d.Default, NumberStyles.Float, Inv, out var parsed) ? parsed : (double?)null;
             double anchor = dv ?? current ?? 0;
             double unit = integer || anchor == 0 ? 10 : 1; // a 0 default says nothing about scale: offer 0-10
-            double min = d.Min ?? (anchor < 0 ? -Nice(2 * -anchor) : 0);
-            double max = d.Max ?? Nice(Math.Max(anchor > 0 ? 2 * anchor : unit, min + unit));
+            double min = hint?.Min ?? d.Min ?? (anchor < 0 ? -Nice(2 * -anchor) : 0);
+            double max = hint?.Max ?? d.Max ?? Nice(Math.Max(anchor > 0 ? 2 * anchor : unit, min + unit));
             if (current.HasValue) { min = Math.Min(min, current.Value); max = Math.Max(max, current.Value); }
             if (max <= min) max = min + unit;
             double span = max - min;
-            int decimals = d.Decimals ?? (integer ? 0 : Math.Max(span <= 2 ? 2 : span <= 100 ? 1 : 0, DecimalsOf(d.Default)));
-            double step = d.Step ?? (integer ? 1 : Math.Pow(10, -decimals));
+            int decimals = hint?.Decimals ?? d.Decimals ?? (integer ? 0 : Math.Max(span <= 2 ? 2 : span <= 100 ? 1 : 0, DecimalsOf(d.Default)));
+            double step = hint?.Step ?? d.Step ?? (integer ? 1 : Math.Pow(10, -decimals));
             return new SliderRange(min, max, step, decimals, integer);
         }
 
@@ -87,12 +114,20 @@ namespace Alien.Ui
             return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e;
         }
 
-        /// <summary>What the input holds now: its manual value, else the header default, else null.</summary>
+        /// <summary>
+        /// What the control shows: the manual value, else the value the script reported for it (NODE_CONTROLS, e.g. the
+        /// size it built), else the header default, else null.
+        /// </summary>
         public static object Current(AlienComponent node, ParamDef d)
         {
             if (node.ManualValues.TryGetValue(d.Name, out var raw))
             {
                 var v = Values.Resolve(raw, d);
+                if (v != null) return v;
+            }
+            if (node.Hint(d.Name)?.Value is JToken shown && shown.Type != JTokenType.Null)
+            {
+                var v = Values.Resolve(shown.ToString(Newtonsoft.Json.Formatting.None), d);
                 if (v != null) return v;
             }
             return d.Default != null ? Values.Resolve(d.Default, d) : null;

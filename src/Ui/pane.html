@@ -41,6 +41,26 @@ details summary{cursor:pointer;color:var(--dim);margin-top:8px}
 .group{margin:8px 0 2px}
 .hist{display:flex;justify-content:space-between;align-items:center;padding:2px 0}
 .empty{color:var(--dim);padding:4px 0}
+.tabs{display:flex;gap:2px;margin-bottom:8px;background:var(--field);border:1px solid var(--edge);border-radius:7px;padding:2px}
+.tabs button{flex:1;border:0;background:none;border-radius:5px;padding:3px 6px;color:var(--dim)}
+.tabs button.on{background:var(--card);color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin:7px 0 2px}
+.chip{border:1px solid var(--edge);border-radius:99px;padding:1px 8px;font-size:11px;color:var(--dim);cursor:pointer;background:none}
+.chip.on{border-color:var(--accent);color:var(--accent)}
+.chip i{font-style:normal;opacity:.6;margin-left:3px}
+.tag{font-size:9.5px;border:1px solid var(--edge);border-radius:4px;padding:0 4px;color:var(--dim);margin-left:4px;vertical-align:1px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:8px}
+.tile{cursor:pointer;border:1px solid var(--edge);border-radius:7px;overflow:hidden;background:#2c2c2e}
+.tile:hover{border-color:#555}.tile.on{border-color:var(--accent)}
+.tile img,.tile .ph{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.tile .ph{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px}
+.tile div{font-size:10.5px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card{border:1px solid var(--edge);border-radius:8px;background:var(--card);padding:8px;margin-top:8px}
+.card img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;display:block;background:#2c2c2e}
+.card .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#toast{position:fixed;left:10px;right:10px;bottom:10px;background:#2b3a2f;border:1px solid var(--accent);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -65,18 +85,32 @@ details summary{cursor:pointer;color:var(--dim);margin-top:8px}
 </section>
 
 <section>
-  <h3>Library</h3>
-  <input id="search" placeholder="Search nodes">
-  <div id="library"></div>
-  <div class="row"><button id="newNode" class="grow">+ New blank node</button></div>
+  <div class="tabs"><button id="tabNodes" class="on">Nodes</button><button id="tabAssets">Generated</button></div>
+  <div id="nodesView">
+    <input id="search" placeholder="Search nodes">
+    <div id="chips" class="chips"></div>
+    <div id="library"></div>
+    <div class="row"><button id="newNode" class="grow">+ New blank node</button></div>
+  </div>
+  <div id="assetsView" style="display:none">
+    <input id="assetSearch" placeholder="Search generated objects, materials, drawings">
+    <div id="assetChips" class="chips"></div>
+    <div id="assetCard"></div>
+    <div id="assets" class="grid"></div>
+  </div>
 </section>
+<div id="toast"></div>
 
 <script>
 const $ = id => document.getElementById(id);
 const post = (type, data) => window.eto.postMessage(JSON.stringify(Object.assign({ type }, data || {})));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let state = { node: null, library: [], settings: {} };
+let state = { node: null, library: [], categories: [], settings: {} };
 let shownNode = null;
+let assets = [], tab = 'nodes', category = 'all', assetKind = 'all', picked = null;
+const KINDS = [['object', 'Objects'], ['texture', 'Materials'], ['graphic', 'Drawings']];
+const SOURCE = { header: 'set in the script', model: 'sorted by the model', keywords: 'guessed from keywords' };
+try { tab = localStorage.getItem('alien.tab') || 'nodes'; } catch (e) {}
 
 window.alien = {
   state(s) {
@@ -85,8 +119,28 @@ window.alien = {
     renderSettings();
     renderNode(prevId !== (s.node && s.node.id));
     renderLibrary();
+  },
+  assets(list) {
+    assets = list || [];
+    if (picked && !assets.some(a => a.kind + '/' + a.id === picked)) picked = null;
+    renderAssets();
+  },
+  toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('show'), 4500);
   }
 };
+
+function renderTabs() {
+  $('tabNodes').classList.toggle('on', tab === 'nodes');
+  $('tabAssets').classList.toggle('on', tab === 'assets');
+  $('tabAssets').textContent = assets.length ? `Generated (${assets.length})` : 'Generated';
+  $('nodesView').style.display = tab === 'nodes' ? '' : 'none';
+  $('assetsView').style.display = tab === 'assets' ? '' : 'none';
+}
 
 function renderSettings() {
   const inRhino = state.host === 'rhino';
@@ -136,18 +190,54 @@ function renderNode(switched) {
     ${hist ? `<details id="dHist" ${open('dHist')}><summary>Earlier versions (${n.history.length})</summary>${hist}</details>` : ''}`;
 }
 
+function chipsHtml(options, current, attr) {
+  return options.map(([key, label, count]) => `<button class="chip ${key === current ? 'on' : ''}" data-${attr}="${esc(key)}">${esc(label)}${count != null ? `<i>${count}</i>` : ''}</button>`).join('');
+}
+
+function setHtml(el, html) { if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; } }
+
 function renderLibrary() {
+  renderTabs();
   const q = $('search').value.trim().toLowerCase();
-  const items = (state.library || []).filter(i => !q || (i.name + ' ' + i.description).toLowerCase().includes(q));
-  const groups = [['suite', 'Suite'], ['yours', 'Your nodes']];
-  const html = groups.map(([key, label]) => {
-    const rows = items.filter(i => i.group === key);
-    if (!rows.length) return '';
-    return `<h3 class="group">${label}</h3>` + rows.map(i =>
-      `<div class="lib" data-place="${esc(i.path)}" title="Place on the canvas"><div>${esc(i.name)} <span class="dim">${esc(i.lang)}</span></div><div class="d">${esc(i.description || '')}</div></div>`).join('');
+  const cats = state.categories || [];
+  const label = k => (cats.find(c => c.key === k) || { label: k }).label;
+  const matched = (state.library || []).filter(i => !q || (i.name + ' ' + i.description + ' ' + label(i.category)).toLowerCase().includes(q));
+  const present = cats.filter(c => matched.some(i => i.category === c.key));
+  if (category !== 'all' && !present.some(c => c.key === category)) category = 'all';
+  setHtml($('chips'), present.length > 1 ? chipsHtml([['all', 'All', matched.length]].concat(present.map(c => [c.key, c.label, matched.filter(i => i.category === c.key).length])), category, 'cat') : '');
+  const html = present.filter(c => category === 'all' || c.key === category).map(c => {
+    const rows = matched.filter(i => i.category === c.key).sort((a, b) => (a.group === b.group ? 0 : a.group === 'suite' ? -1 : 1) || a.name.localeCompare(b.name));
+    return `<h3 class="group" title="${esc(c.hint)}">${esc(c.label)}</h3>` + rows.map(i =>
+      `<div class="lib" data-place="${esc(i.path)}" title="Place on the canvas · ${esc(i.path)} · category ${esc(SOURCE[i.categorySource] || '')}"><div>${esc(i.name)} <span class="dim">${esc(i.lang)}</span>${i.group === 'suite' ? '<span class="tag">suite</span>' : ''}</div><div class="d">${esc(i.description || '')}</div></div>`).join('');
   }).join('');
-  const lib = $('library');
-  if (lib.dataset.html !== html) { lib.innerHTML = html || '<div class="empty">No nodes match.</div>'; lib.dataset.html = html; }
+  setHtml($('library'), html || '<div class="empty">No nodes match.</div>');
+}
+
+function renderAssets() {
+  renderTabs();
+  const q = $('assetSearch').value.trim().toLowerCase();
+  const matched = assets.filter(a => !q || [a.name, a.prompt, (a.materials || []).join(' '), a.node].join(' ').toLowerCase().includes(q));
+  const kinds = KINDS.filter(([k]) => matched.some(a => a.kind === k));
+  if (assetKind !== 'all' && !kinds.some(([k]) => k === assetKind)) assetKind = 'all';
+  setHtml($('assetChips'), kinds.length > 1 ? chipsHtml([['all', 'All', matched.length]].concat(kinds.map(([k, l]) => [k, l, matched.filter(a => a.kind === k).length])), assetKind, 'kind') : '');
+  const shown = matched.filter(a => assetKind === 'all' || a.kind === assetKind);
+  setHtml($('assets'), shown.map(a => `<div class="tile ${a.kind + '/' + a.id === picked ? 'on' : ''}" data-asset="${esc(a.kind + '/' + a.id)}" title="${esc(a.name)}">
+      ${a.thumb ? `<img src="${a.thumb}" alt="">` : `<span class="ph">${esc(a.kind)}</span>`}<div>${esc(a.name)}</div></div>`).join('')
+    || `<div class="empty" style="grid-column:1/-1">${assets.length ? 'Nothing matches.' : 'Nothing generated yet. The 3D object, material texture, scale figure and scale tree nodes save what they make here.'}</div>`);
+  const a = assets.find(x => x.kind + '/' + x.id === picked);
+  setHtml($('assetCard'), a ? `<div class="card">
+      ${a.thumb ? `<img src="${a.thumb}" alt="">` : ''}
+      <div class="row" style="margin-top:7px"><span class="title grow">${esc(a.name)}</span><span class="pill">${esc((KINDS.find(k => k[0] === a.kind) || [0, a.kind])[1])}</span></div>
+      <div class="dim">${esc([a.size, (a.materials || []).join(', '), a.created].filter(Boolean).join(' · '))}</div>
+      ${a.prompt ? `<div class="dim clamp" style="margin-top:4px" title="${esc(a.prompt)}">${esc(a.prompt)}</div>` : ''}
+      <div class="acts">
+        ${a.hasGeometry ? `<button class="go" data-asset-act="bakeAsset" title="Insert as a block at the origin">Bake block</button>` : ''}
+        ${a.hasTexture ? `<button class="go" data-asset-act="materialAsset" title="Add as a render material at real size; applied to selected objects">Add material</button>` : ''}
+        ${a.canPlace ? `<button data-asset-act="placeAsset" title="Place the node that made it, with the same inputs">Place node</button>` : ''}
+        <button data-asset-act="revealAsset">Show files</button>
+        <button data-asset-act="removeAsset" class="stop" title="Take it out of the library (moved to .alien/trash)">Remove</button>
+        <button data-asset-act="close" class="icon" title="Close">✕</button>
+      </div></div>` : '');
 }
 
 function send() {
@@ -165,11 +255,28 @@ $('dock').onclick = () => post('dock', { where: state.host === 'rhino' ? 'grassh
 $('close').onclick = () => post('close');
 $('model').onchange = e => post('model', { value: e.target.value });
 $('search').oninput = renderLibrary;
+$('assetSearch').oninput = renderAssets;
+const setTab = t => { tab = t; try { localStorage.setItem('alien.tab', t); } catch (e) {} renderLibrary(); renderAssets(); };
+$('tabNodes').onclick = () => setTab('nodes');
+$('tabAssets').onclick = () => setTab('assets');
 $('newNode').onclick = () => post('new', { lang: $('lang').value });
 document.body.addEventListener('click', e => {
-  const t = e.target.closest('[data-place],[data-restore],[data-act]');
+  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act]');
   if (!t) return;
-  if (t.dataset.place) post('place', { path: t.dataset.place });
+  if (t.dataset.cat) { category = t.dataset.cat; renderLibrary(); }
+  else if (t.dataset.kind) { assetKind = t.dataset.kind; renderAssets(); }
+  else if (t.dataset.asset) { picked = picked === t.dataset.asset ? null : t.dataset.asset; renderAssets(); }
+  else if (t.dataset.assetAct) {
+    if (t.dataset.assetAct === 'close') { picked = null; renderAssets(); return; }
+    if (t.dataset.assetAct === 'removeAsset' && !t.dataset.armed) {  // second click within 3 s removes
+      t.dataset.armed = '1'; t.textContent = 'Click again to remove';
+      setTimeout(() => { delete t.dataset.armed; t.textContent = 'Remove'; }, 3000);
+      return;
+    }
+    const [kind, id] = (picked || '/').split('/');
+    post(t.dataset.assetAct, { kind, id });
+  }
+  else if (t.dataset.place) post('place', { path: t.dataset.place });
   else if (t.dataset.restore) post('restore', { file: t.dataset.restore });
   else post(t.dataset.act);
 });

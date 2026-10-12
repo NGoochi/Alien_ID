@@ -342,3 +342,33 @@ def place(loops, size, plane, fit="height", smooth=True):
     fill = list(rg.Brep.CreatePlanarBreps(curves, tol) or [])
     hatch = list(rg.Hatch.Create(curves, 0, 0.0, 1.0, tol) or [])
     return curves, fill, hatch
+
+
+def save_asset(name, node, meta, variant, inputs, curves, hatches, plane, home):
+    """
+    Keep a drawing in the asset library (kind "graphic"): the image, plus the traced outlines and hatches moved back
+    to metres on the node's home plane at the origin, so a baked block comes in at true size.
+    """
+    try:
+        import Rhino
+        import Rhino.Geometry as rg
+        import alien_assets
+        params = {"variant": int(variant or 0)}
+        if alien_assets.exists("graphic", meta["prompt"], params):
+            return
+        doc = Rhino.RhinoDoc.ActiveDoc
+        units = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, doc.ModelUnitSystem) if doc else 1.0
+        to_home = rg.Transform.Scale(rg.Point3d.Origin, 1.0 / units) * rg.Transform.PlaneToPlane(plane, home)
+        geometry = []
+        for g in list(curves) + list(hatches):
+            g = g.Duplicate()
+            g.Transform(to_home)
+            geometry.append(g)
+        with open(meta["path"], "rb") as f:
+            data = f.read()
+        ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png"
+        alien_assets.save("graphic", name, meta["prompt"], params, node, files={"drawing" + ext: data},
+                          geometry=geometry, thumbnail=alien_assets.thumbnail_from_image(data),
+                          extra={"inputs": inputs, "model": meta.get("model")})
+    except Exception as ex:
+        print("could not save to the asset library: %s" % ex)

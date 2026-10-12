@@ -215,8 +215,14 @@ namespace Alien.Mcp
             {
                 var p = n.Params.Input.FirstOrDefault(x => x.Name == def.Name);
                 string src = p != null && p.SourceCount > 0 ? "wired"
+                    : def.Button ? "button: set_values true presses it"
                     : n.ManualValues.TryGetValue(def.Name, out var mv) ? "manual=" + mv
                     : def.Default != null ? "default=" + def.Default : "none";
+                var hint = n.Hint(def.Name);
+                if (hint != null && p?.SourceCount == 0)  // the script's run-time slider range and shown value
+                    src += hint.Min.HasValue && hint.Max.HasValue ? $", range {hint.Min}-{hint.Max}" : "";
+                if (hint?.Value != null && p?.SourceCount == 0 && !n.ManualValues.ContainsKey(def.Name))
+                    src += ", shows " + hint.Value.ToString(Newtonsoft.Json.Formatting.None);
                 arr.Add($"{def.Name}:{TypeMap.Describe(def)} ({src})");
             }
             return arr;

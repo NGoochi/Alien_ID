@@ -21,7 +21,8 @@ namespace Alien.Scripting
         double? Step,
         int? Decimals,
         string Default,       // raw default token (number, true/false, string, JSON), resolved per type
-        string Options = null) // options="a|b|c": the choices for a dropdown on the node
+        string Options = null, // options="a|b|c": the choices for a dropdown on the node
+        bool Button = false)   // `button` on a bool: a momentary button (true for one solve) instead of a switch
     {
         public string[] Choices => string.IsNullOrWhiteSpace(Options)
             ? Array.Empty<string>()
@@ -52,7 +53,7 @@ namespace Alien.Scripting
 
     /// <summary>
     /// Parses `NODE_INPUTS:` / `NODE_OUTPUTS:` comment lines (`#` for Python, `//` for C#).
-    /// Token grammar: name[:type] [| "description"] [min= max= step= decimals= default= options="a|b"]
+    /// Token grammar: name[:type] [| "description"] [min= max= step= decimals= default= options="a|b"] [button]
     /// Tolerated variants: list[T], List[T], list&lt;T&gt;, T[], T:list, tree[T], T:tree, metadata without `|`.
     /// </summary>
     public static class HeaderParser
@@ -64,6 +65,7 @@ namespace Alien.Scripting
 
         private static readonly Regex Identifier = new Regex(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
         private static readonly Regex WrappedType = new Regex(@"^(list|tree)\s*[\[<]\s*(.+?)\s*[\]>]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ButtonFlag = new Regex(@"(^|\s)button(\s|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex KeyValue = new Regex(@"\b(min|max|step|decimals|default|options)\s*=\s*(""[^""]*""|\[[^\]]*\]|[^\s,]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex FreeRange = new Regex(@"Range\s*:\s*([-+]?\d*\.?\d+)\s*[-–—]\s*([-+]?\d*\.?\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -231,7 +233,8 @@ namespace Alien.Scripting
                 }
             }
 
-            return new ParamDef(name, type, access, description, min, max, step, decimals, def, options);
+            bool button = type == "bool" && ButtonFlag.IsMatch(Regex.Replace(rest, "\"[^\"]*\"", ""));
+            return new ParamDef(name, type, access, description, min, max, step, decimals, def, options, button);
         }
 
         private static double? ParseDouble(string s) =>

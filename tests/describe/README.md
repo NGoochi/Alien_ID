@@ -28,5 +28,11 @@ Changes after this run: the default model became Claude Haiku 5.5; the system pr
 built-in methods (DeepSeek had hand-written a 100-line mesh contourer instead of calling `Mesh.CreateContourCurves`;
 after the change it wrote 37 lines using the built-in, on the first try).
 
+## 2026-10-12: rerun after adding `# CATEGORY:` to the file layout
+
+anthropic/claude-haiku-5.5: 10/10 working, 10/10 first try, US$0.0011 per node, 9.6 s average. Every script carried a
+CATEGORY line (4 Geometry, 3 Massing & objects, 1 Data & lists, 1 Utilities, 1 Analysis). Two picks were loose
+("attractor-point scaling of circles" as Massing & objects), so the prompt now lists each category's hint.
+
 `results-2026-10-09/scripts/` holds the generated scripts. Files without a suffix are DeepSeek's, `_02` is GPT-6
 Luna's and `_03` is Haiku's; the rest are from later spot checks.

@@ -30,8 +30,12 @@ Reply with exactly one ```{fence} code block holding the complete file, then at 
 File layout:
 {c} NODE_INPUTS: ...
 {c} NODE_OUTPUTS: ...
+{c} CATEGORY: <the library category that fits best, by its label>
 {c} <one line saying what the node does; it becomes the node's library listing>
 <code>
+
+Library categories (label: what belongs there):
+{string.Join("\n", Library.Categories.Select(x => "- " + x.Label + ": " + x.Hint))}
 
 Rules:
 - Give number inputs a sensible default= (and min/max where natural) so the node works before anything is wired.
