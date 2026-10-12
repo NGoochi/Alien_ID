@@ -33,6 +33,7 @@ namespace Alien.Scripting
     public static class ScriptRunner
     {
         private const string UnsetVar = "__alien_unset__";
+        private const string ControlsVar = "__alien_controls__";  // NODE_CONTROLS as JSON (see AGENT_GUIDE "Inputs and outputs")
         private static readonly Dictionary<string, Code> Codes = new Dictionary<string, Code>(StringComparer.OrdinalIgnoreCase);
         private static Code _purge;
         private static DateTime _lastPurge = DateTime.MinValue;
@@ -58,7 +59,7 @@ namespace Alien.Scripting
                 if (python)
                 {
                     text = source + PythonEpilogue(outputs);
-                    declaredOutputs = outputs.Concat(new[] { UnsetVar }).ToList();
+                    declaredOutputs = outputs.Concat(new[] { UnsetVar, ControlsVar }).ToList();
                 }
                 else
                 {
@@ -90,6 +91,8 @@ namespace Alien.Scripting
                         ctx.Outputs.TryGet(name, out object value);
                         result.Outputs[name] = Normalize(value);
                     }
+                    if (python && ctx.Outputs.TryGet(ControlsVar, out object controls) && controls is string json)
+                        result.Controls = json;
                     if (python && ctx.Outputs.TryGet(UnsetVar, out object unset) && unset is IEnumerable names)
                         result.Unset.AddRange(names.Cast<object>().Select(n => n?.ToString()));
                     else if (!python)
@@ -237,7 +240,14 @@ namespace Alien.Scripting
             sb.Append($"for __n in {names}:\n");
             sb.Append("    if __n in globals():\n");
             sb.Append("        globals()[__n] = __alien_fix__(globals()[__n])\n");
-            return outputs.Count == 0 ? $"\n{UnsetVar} = []\n" : sb.ToString();
+            var controls = $"\n{ControlsVar} = None\n" +
+                           "if isinstance(globals().get('NODE_CONTROLS'), dict):\n" +
+                           "    try:\n" +
+                           "        import json as __alien_json__\n" +
+                           $"        {ControlsVar} = __alien_json__.dumps(NODE_CONTROLS, default=str)\n" +
+                           "    except Exception:\n" +
+                           "        pass\n";
+            return (outputs.Count == 0 ? $"\n{UnsetVar} = []\n" : sb.ToString()) + controls;
         }
 
         /// <summary>Drop cached modules loaded from the script's folder or the repository, so edited helpers reload.</summary>

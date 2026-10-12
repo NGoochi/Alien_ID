@@ -277,7 +277,7 @@ namespace Alien
             {
                 case ControlKind.Slider:
                 {
-                    var range = _drag == r ? _dragRange : NodeControls.Range(r.Def, NodeControls.AsNumber(value));
+                    var range = _drag == r ? _dragRange : NodeControls.Range(r.Def, NodeControls.AsNumber(value), Owner.Hint(r.Def.Name));
                     double v = _drag == r ? _dragValue : NodeControls.AsNumber(value) ?? range.Min;
                     var track = Track(rc);
                     float t = (float)((v - range.Min) / (range.Max - range.Min));
@@ -301,6 +301,21 @@ namespace Alien
                         new StringFormat { LineAlignment = StringAlignment.Center });
                     break;
                 }
+                case ControlKind.Button:
+                {
+                    // Momentary: lit while its press waits for or runs its solve
+                    bool busy = Owner.IsPulsing(r.Def.Name);
+                    var label = busy ? "working…" : "▶ " + ButtonLabel(r.Def.Name);
+                    var bb = new RectangleF(rc.X, rc.Y + 1, Math.Min(rc.Width, 96), rc.Height - 2);
+                    using (var bp = RoundRect(bb, 4f))
+                    {
+                        using (var fb = new SolidBrush(busy ? Accent : FieldBg)) g.FillPath(fb, bp);
+                        using (var fe = new Pen(Accent, 0.9f)) g.DrawPath(fe, bp);
+                    }
+                    using (var tb = new SolidBrush(busy ? Color.Black : Accent))
+                        g.DrawString(label, f, tb, bb, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                    break;
+                }
                 case ControlKind.Choice:
                 case ControlKind.Text:
                 {
@@ -322,6 +337,12 @@ namespace Alien
             }
         }
 
+        private static string ButtonLabel(string name)
+        {
+            var words = name.Replace('_', ' ');
+            return words.Length == 0 ? name : char.ToUpperInvariant(words[0]) + words.Substring(1);
+        }
+
         private static RectangleF Track(RectangleF control) =>
             new RectangleF(control.X + 5, control.Y, control.Width - ValueW - 12, control.Height);
 
@@ -341,7 +362,7 @@ namespace Alien
                 case ControlKind.Slider:
                     Owner.OnPingDocument()?.UndoUtil.RecordGenericObjectEvent("Alien slider", Owner);
                     _drag = r;
-                    _dragRange = NodeControls.Range(r.Def, NodeControls.AsNumber(value));
+                    _dragRange = NodeControls.Range(r.Def, NodeControls.AsNumber(value), Owner.Hint(r.Def.Name));
                     _applied = NodeControls.AsNumber(value) ?? double.NaN;
                     // Fast scripts follow the slider live; slow ones (network, heavy geometry) solve on release.
                     _dragLive = Owner.LastRun.Iterations > 0 && Owner.LastRun.Ms < 80 && !Owner.IsDescribing;
@@ -350,6 +371,9 @@ namespace Alien
                     return GH_ObjectResponse.Capture;
                 case ControlKind.Toggle:
                     Owner.SetInput(r.Def.Name, new JValue(!(value is bool on && on)));
+                    return GH_ObjectResponse.Handled;
+                case ControlKind.Button:
+                    if (!Owner.IsPulsing(r.Def.Name)) Owner.Pulse(r.Def.Name);
                     return GH_ObjectResponse.Handled;
                 case ControlKind.Choice:
                     var menu = new ContextMenuStrip();
@@ -420,7 +444,7 @@ namespace Alien
                 if (r.Kind == ControlKind.Slider)
                 {
                     var v = NodeControls.AsNumber(NodeControls.Current(Owner, r.Def));
-                    EditValue(sender, r, v.HasValue ? NodeControls.Range(r.Def, v).Format(v.Value) : "");
+                    EditValue(sender, r, v.HasValue ? NodeControls.Range(r.Def, v, Owner.Hint(r.Def.Name)).Format(v.Value) : "");
                 }
                 return GH_ObjectResponse.Handled;
             }

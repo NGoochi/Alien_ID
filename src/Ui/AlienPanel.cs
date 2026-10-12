@@ -34,7 +34,7 @@ namespace Alien.Ui
     {
         private static readonly Guid GrasshopperPlugIn = new Guid("b45a29b1-4343-4035-989e-044e8580d9cf");
         private static readonly List<AlienPanel> Live = new List<AlienPanel>();
-        private static bool _registered, _suiteChecked;
+        private static bool _registered, _suiteChecked, _hooked;
         private static readonly string[] Models =
         {
             ModelChoice.DefaultModel, "openai/gpt-6-luna", "deepseek/deepseek-v4.1-flash",
@@ -49,6 +49,7 @@ namespace Alien.Ui
         private string _sent;
         private JArray _library = new JArray();
         private DateTime _libraryAt = DateTime.MinValue;
+        private string _assetsSent;
 
         /// <summary>True when hosted by the sidecar beside Grasshopper; false when docked in Rhino.</summary>
         private readonly bool _sidecar;
@@ -70,6 +71,11 @@ namespace Alien.Ui
             _timer.Elapsed += (s, e) => Push(false);
             _timer.Start();
             Live.Add(this);
+            if (!_hooked)
+            {
+                _hooked = true; // the model sorted more nodes into categories: refresh the listing
+                Library.Classified += () => Application.Instance.AsyncInvoke(() => { foreach (var p in Live.ToList()) p.Push(true); });
+            }
         }
 
         protected override void OnUnLoad(EventArgs e)
@@ -183,13 +189,20 @@ namespace Alien.Ui
                     _suiteChecked = true;
                     Suite.InstallIfMissing();
                 }
-                if (force || DateTime.UtcNow - _libraryAt > TimeSpan.FromSeconds(3)) _library = Library();
+                bool relist = force || DateTime.UtcNow - _libraryAt > TimeSpan.FromSeconds(3);
+                if (relist)
+                {
+                    _libraryAt = DateTime.UtcNow;
+                    _library = Library.Nodes();
+                    PushAssets();
+                }
 
                 var node = Selected();
                 var state = new JObject
                 {
                     ["node"] = node == null ? null : NodeJson(node),
                     ["library"] = _library,
+                    ["categories"] = Library.CategoryList(),
                     ["host"] = _sidecar ? "grasshopper" : "rhino",
                     ["settings"] = new JObject
                     {
@@ -230,7 +243,7 @@ namespace Alien.Ui
                 ["inputs"] = new JArray(n.Header.Inputs.Select(d =>
                 {
                     var p = n.Params.Input.FirstOrDefault(x => x.Name == d.Name);
-                    var value = p != null && p.SourceCount > 0 ? "wired" : NodeControls.AsText(NodeControls.Current(n, d));
+                    var value = p != null && p.SourceCount > 0 ? "wired" : d.Button ? "button" : NodeControls.AsText(NodeControls.Current(n, d));
                     return new JObject { ["name"] = d.Name, ["value"] = value.Length > 0 ? value : "—" };
                 })),
                 ["code"] = source == null ? null : source.Length > 60000 ? source.Substring(0, 60000) + "\n…" : source,
@@ -259,29 +272,18 @@ namespace Alien.Ui
             return arr;
         }
 
-        /// <summary>Scripts in the repository that are nodes (have a header): the suite folder, then everything else.</summary>
-        private JArray Library()
+        /// <summary>Generated assets go in their own message, sent only when one changes (thumbnails make it large).</summary>
+        private void PushAssets()
         {
-            _libraryAt = DateTime.UtcNow;
-            var arr = new JArray();
-            var root = ScriptRepository.Root;
-            if (root == null) return arr;
-            foreach (var rel in ScriptRepository.ListScripts().Take(400))
-            {
-                string head;
-                try { head = string.Join("\n", File.ReadLines(Path.Combine(root, rel)).Take(40)); }
-                catch { continue; }
-                if (!head.Contains("NODE_OUTPUTS") && !head.Contains("NODE_INPUTS")) continue;
-                arr.Add(new JObject
-                {
-                    ["name"] = Path.GetFileNameWithoutExtension(rel),
-                    ["path"] = rel,
-                    ["lang"] = ScriptLanguages.Tag(ScriptLanguages.FromPath(rel)),
-                    ["group"] = rel.StartsWith("suite/", StringComparison.OrdinalIgnoreCase) ? "suite" : "yours",
-                    ["description"] = ScriptInfo.Description(head),
-                });
-            }
-            return arr;
+            var list = Assets.List(out var signature);
+            if (signature == _assetsSent) return;
+            _assetsSent = signature;
+            _web.ExecuteScriptAsync("window.alien && window.alien.assets(" + list.ToString(Formatting.None) + ")");
+        }
+
+        private void Toast(string text)
+        {
+            if (!string.IsNullOrEmpty(text)) _web.ExecuteScriptAsync("window.alien && window.alien.toast(" + JsonConvert.ToString(text) + ")");
         }
 
         // ── Page → actions ───────────────────────────────────────────
@@ -298,6 +300,7 @@ namespace Alien.Ui
                 {
                     case "ready":
                         _ready = true;
+                        _assetsSent = null;
                         Push(true);
                         return;
                     case "describe":
@@ -334,10 +337,39 @@ namespace Alien.Ui
                     case "restore":
                         Restore(node, m.Value<string>("file"));
                         break;
+                    case "bakeAsset":
+                        if (RhinoDoc.ActiveDoc != null) Toast(Assets.Bake(RhinoDoc.ActiveDoc, m.Value<string>("kind"), m.Value<string>("id")));
+                        break;
+                    case "materialAsset":
+                        if (RhinoDoc.ActiveDoc != null) Toast(Assets.AddMaterial(RhinoDoc.ActiveDoc, m.Value<string>("kind"), m.Value<string>("id")));
+                        break;
+                    case "placeAsset":
+                        Toast(PlaceRecipe(m.Value<string>("kind"), m.Value<string>("id")));
+                        break;
+                    case "removeAsset":
+                        Toast(Assets.Remove(m.Value<string>("kind"), m.Value<string>("id")));
+                        PushAssets();
+                        break;
+                    case "revealAsset":
+                        var folder = Assets.Folder(m.Value<string>("kind"), m.Value<string>("id"));
+                        if (folder != null) AlienUi.Reveal(Path.Combine(folder, "asset.json"));
+                        break;
                 }
                 Push(true);
             }
             catch (Exception ex) { RhinoApp.WriteLine("Alien panel: " + ex.Message); }
+        }
+
+        /// <summary>Place the suite node that made an asset, with the inputs that made it (cached, so it costs nothing).</summary>
+        private static string PlaceRecipe(string kind, string id)
+        {
+            var (script, inputs) = Assets.Recipe(kind, id);
+            if (script == null) return "This asset doesn't record how it was made.";
+            if (!File.Exists(ScriptRepository.Resolve(script))) return $"{script} isn't in your script folder.";
+            var n = Place(script);
+            if (n == null) return null;
+            n.PresetManualValues(inputs);
+            return $"Placed {Path.GetFileNameWithoutExtension(script)} with the inputs that made it.";
         }
 
         /// <summary>A new Alien node in the middle of the canvas view (blank, or attached to a repository script), selected.</summary>
@@ -406,7 +438,7 @@ namespace Alien.Ui
                 if (line.Length == 0) continue;
                 string body = line.StartsWith("#") ? line.TrimStart('#').Trim() : line.StartsWith("//") ? line.Substring(2).Trim() : null;
                 if (body == null) return null; // code started: no description
-                if (body.Length == 0 || body.StartsWith("NODE_", StringComparison.OrdinalIgnoreCase) || body.StartsWith("!")
+                if (body.Length == 0 || body.StartsWith("NODE_", StringComparison.OrdinalIgnoreCase) || body.StartsWith("CATEGORY:", StringComparison.OrdinalIgnoreCase) || body.StartsWith("!")
                     || body.StartsWith("r:") || body.StartsWith("r \"") || body.StartsWith("flag:")) continue;
                 return body;
             }

@@ -45,6 +45,11 @@ namespace Alien
         private string _snapshot;                 // header lines read from a .gh file, until the script is re-read
         private ScriptFileWatcher _watcher;
         private readonly Dictionary<string, string> _manual = new Dictionary<string, string>(StringComparer.Ordinal);
+        // The NODE_CONTROLS key each manual value was set under: when the script reports a new key (a new design), the
+        // value belonged to the old one and is dropped.
+        private readonly Dictionary<string, string> _manualKeys = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ControlHint> _hints = new Dictionary<string, ControlHint>(StringComparer.Ordinal);
+        private readonly HashSet<string> _pulse = new HashSet<string>(StringComparer.Ordinal); // buttons pressed for the next solve
 
         /// <summary>Set by MCP before adding to the document so we don't pop the repository dialog.</summary>
         internal bool SuppressRepositoryPrompt { get; set; }
@@ -53,6 +58,24 @@ namespace Alien
         public ScriptLanguage Language => _language;
         public ScriptHeader Header => _header;
         public IReadOnlyDictionary<string, string> ManualValues => _manual;
+        /// <summary>The script's run-time tuning for an input's control (from NODE_CONTROLS on the last run), or null.</summary>
+        public ControlHint Hint(string name) => _hints.TryGetValue(name, out var h) ? h : null;
+        /// <summary>True while a pressed button input waits for (or is in) its solve.</summary>
+        public bool IsPulsing(string name) => _pulse.Contains(name);
+
+        /// <summary>
+        /// Press a button input: it reads true for the next solve only. Not stored, saved or undoable, so re-solving,
+        /// reopening the file or changing another input never presses it again.
+        /// </summary>
+        public void Pulse(string name)
+        {
+            _pulse.Add(name);
+            OnDisplayExpired(false);
+            Grasshopper.Instances.RedrawCanvas();
+            var doc = OnPingDocument();
+            if (doc != null) doc.ScheduleSolution(15, d => ExpireSolution(false)); // let the pressed state paint first
+            else ExpireSolution(true);
+        }
         public bool IsRebuilding => _rebuildScheduled;
         public RunRecord LastRun { get; private set; } = new RunRecord();
         /// <summary>Increments after every solution this component takes part in (MCP waits on it).</summary>
@@ -227,6 +250,7 @@ namespace Alien
                     inputs[def.Name] = ReadInput(DA, i, def, csharp);
                 }
                 result = ScriptRunner.Run(_language, _path, _source, _header, inputs);
+                if (DA.Iteration == 0 && result.Success) UpdateHints(result.Controls);
             }
             catch (Exception ex)
             {
@@ -258,6 +282,8 @@ namespace Alien
         protected override void AfterSolveInstance()
         {
             base.AfterSolveInstance();
+            if (LastRun.Iterations > 0) _pulse.Clear();
+            DropStaleValues();
             if (LastRun.Iterations > 0)
             {
                 LastRun.Status = LastRun.Failures > 0 ? "error" : "ok";
@@ -270,6 +296,56 @@ namespace Alien
                 : ScriptLanguages.Tag(_language);
             Attributes?.ExpireLayout(); // the error strip on the node changes height
             SolveStamp++;
+        }
+
+        private void UpdateHints(string json)
+        {
+            _hints.Clear();
+            if (string.IsNullOrWhiteSpace(json)) return;
+            try
+            {
+                foreach (var p in JObject.Parse(json).Properties())
+                    if (ControlHint.From(p.Value) is ControlHint h) _hints[p.Name] = h;
+            }
+            catch (JsonException) { /* not a dict of dicts: no hints */ }
+        }
+
+        /// <summary>
+        /// Manual values set under another NODE_CONTROLS key than the script now reports belonged to an earlier result
+        /// (object_3d: a width for the chair, not the table that replaced it). Drop them and solve again.
+        /// </summary>
+        private void DropStaleValues()
+        {
+            var stale = new List<string>();
+            foreach (var name in _manual.Keys.ToList())
+            {
+                if (!_hints.TryGetValue(name, out var h)) continue;
+                if (_header.FindInput(name) is ParamDef def && IsDefault(def, _manual[name]))
+                {
+                    _manual.Remove(name); // e.g. a placed node's "0 = as built": show the script's value instead of 0
+                    _manualKeys.Remove(name);
+                    continue;
+                }
+                if (h.Key == null) continue;
+                if (!_manualKeys.TryGetValue(name, out var was)) _manualKeys[name] = h.Key; // set before any key: adopt
+                else if (was != h.Key) stale.Add(name);
+            }
+            if (stale.Count == 0) return;
+            foreach (var name in stale)
+            {
+                _manual.Remove(name);
+                _manualKeys.Remove(name);
+            }
+            OnPingDocument()?.ScheduleSolution(5, d => ExpireSolution(false));
+        }
+
+        /// <summary>True when a raw manual value means the same as the header default (single values only).</summary>
+        private static bool IsDefault(ParamDef def, string raw)
+        {
+            if (def.Default == null || def.Access != ParamAccess.Item) return false;
+            var a = Values.Resolve(raw, def);
+            var b = Values.Resolve(def.Default, def);
+            return a != null && b != null && (a is string || a.GetType().IsPrimitive) && a.Equals(b);
         }
 
         private object ReadInput(IGH_DataAccess DA, int index, ParamDef def, bool csharp)
@@ -302,6 +378,7 @@ namespace Alien
                 }
             }
 
+            if (def.Button && _pulse.Contains(def.Name)) return true;
             if (_manual.TryGetValue(def.Name, out var manual))
             {
                 var v = Values.Resolve(manual, def);
@@ -413,12 +490,38 @@ namespace Alien
             var unknown = new List<string>();
             foreach (var kv in values)
             {
-                if (_header.FindInput(kv.Key) == null) { unknown.Add(kv.Key); continue; }
-                if (kv.Value == null || kv.Value.Type == JTokenType.Null) _manual.Remove(kv.Key);
-                else _manual[kv.Key] = kv.Value.ToString(Formatting.None);
+                var def = _header.FindInput(kv.Key);
+                if (def == null) { unknown.Add(kv.Key); continue; }
+                if (def.Button)
+                {
+                    // set_values {"generate": true} presses the button; a button never holds a value
+                    if (kv.Value != null && kv.Value.Type == JTokenType.Boolean && (bool)kv.Value) _pulse.Add(kv.Key);
+                    _manual.Remove(kv.Key);
+                    continue;
+                }
+                if (kv.Value == null || kv.Value.Type == JTokenType.Null || IsDefault(def, kv.Value.ToString(Formatting.None)))
+                {
+                    _manual.Remove(kv.Key); // set to its default = no value, so a control can show what the script reports
+                    _manualKeys.Remove(kv.Key);
+                    continue;
+                }
+                _manual[kv.Key] = kv.Value.ToString(Formatting.None);
+                if (Hint(kv.Key)?.Key is string key) _manualKeys[kv.Key] = key;
+                else _manualKeys.Remove(kv.Key);
             }
             ExpireSolution(true);
             return unknown;
+        }
+
+        /// <summary>
+        /// Manual values for a node whose script hasn't been read yet (just placed: the header loads on the first solve),
+        /// stored by name the way a .gh file restores them.
+        /// </summary>
+        public void PresetManualValues(IDictionary<string, JToken> values)
+        {
+            foreach (var kv in values)
+                if (kv.Value != null && kv.Value.Type != JTokenType.Null) _manual[kv.Key] = kv.Value.ToString(Formatting.None);
+            ExpireSolution(true);
         }
 
         // ── Persistence ──────────────────────────────────────────────
@@ -436,6 +539,7 @@ namespace Alien
             {
                 writer.SetString($"Manual_{i}_Name", kv.Key);
                 writer.SetString($"Manual_{i}_Value", kv.Value);
+                if (_manualKeys.TryGetValue(kv.Key, out var key)) writer.SetString($"Manual_{i}_Key", key);
                 i++;
             }
             return base.Write(writer);
@@ -459,9 +563,14 @@ namespace Alien
                 catch { /* an unreadable history is not worth failing the file over */ }
             }
             _manual.Clear();
+            _manualKeys.Clear();
             int n = reader.ItemExists("ManualCount") ? reader.GetInt32("ManualCount") : 0;
             for (int i = 0; i < n; i++)
-                _manual[reader.GetString($"Manual_{i}_Name")] = reader.GetString($"Manual_{i}_Value");
+            {
+                var name = reader.GetString($"Manual_{i}_Name");
+                _manual[name] = reader.GetString($"Manual_{i}_Value");
+                if (reader.ItemExists($"Manual_{i}_Key")) _manualKeys[name] = reader.GetString($"Manual_{i}_Key");
+            }
             return base.Read(reader);
         }
 

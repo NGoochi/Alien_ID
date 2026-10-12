@@ -3,6 +3,7 @@
 # NODE_INPUTS: base:float | "elevation of the first level (m)" default=0, outline:Curve | "floor plate to copy to every level (optional)"
 # NODE_OUTPUTS: planes:list[Plane] | "one per level", elevations:list[float] | "level z (m)", floor_heights:list[float] | "floor-to-floor of each level (m)"
 # NODE_OUTPUTS: names:list[str], plates:list[Curve] | "floor plate at each level", roof:Plane | "top of the last level", total:float | "base to roof (m)"
+# CATEGORY: Massing & objects
 # Levels: a stack of building levels from z0, each with its own floor-to-floor height, with planes, elevations and floor plates.
 import re
 

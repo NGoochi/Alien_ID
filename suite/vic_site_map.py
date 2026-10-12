@@ -1,13 +1,22 @@
 # NODE_INPUTS: address:str | "Victorian street address, or lat,lon" default="201 Napier Street, Fitzroy VIC 3065"
 # NODE_INPUTS: radius:float | "context around the site (m)" min=10 max=300 default=60
 # NODE_INPUTS: assumed_height:float | "height for buildings with no known height (m); 0 = leave them flat" min=0 max=60 default=7
-# NODE_INPUTS: refresh:bool | "fetch again instead of using the cache" default=false
+# NODE_INPUTS: refresh:bool | "fetch again instead of using the cache" button
+# NODE_INPUTS: terrain:bool | "ground from LiDAR / Vicmap elevation; buildings, streets and trees sit on it" default=true
+# NODE_INPUTS: streets:bool | "3D streets: carriageways, kerbs, footpaths and nature strips in the road reserves" default=true
+# NODE_INPUTS: trees:bool | "trees with measured height and canopy (metro Melbourne + Ballarat, Shepparton, Wangaratta, Sale)" default=true
+# NODE_INPUTS: contour_step:float | "contour interval (m); 0 = no contours" min=0 max=10 step=0.5 default=1
 # NODE_OUTPUTS: site:list[Curve] | "lot boundary", lots:list[Curve] | "neighbouring lots", roads:list[Curve] | "road centrelines", road_names:list[str] | "one per road curve"
 # NODE_OUTPUTS: footprints:list[Curve] | "building footprints", buildings:list[Brep] | "extruded footprints", zone:str, overlays:list[str], info:str | "summary, sources and caveats", area:float | "site area (m2)"
-# Victorian site map: an address becomes the lot, neighbouring lots, named roads, building massing, zone and overlays (Vicmap + Overture Maps).
+# NODE_OUTPUTS: ground:Mesh | "terrain", contours:list[Curve] | "at whole multiples of contour_step (m AHD)", datum:float | "AHD height of z = 0 (m)"
+# NODE_OUTPUTS: carriageway:Mesh | "road surface", footpath:Mesh | "paved verge", nature_strip:Mesh | "grass verge and medians", kerb:Mesh | "kerb faces"
+# NODE_OUTPUTS: canopy:Mesh | "tree crowns", trunk:Mesh | "tree trunks"
+# CATEGORY: Site & context
+# Victorian site map: an address becomes the lot, neighbouring lots, roads, terrain, 3D streets, trees, building massing, zone and overlays (Vicmap, GA, Overture Maps).
 #
-# Geometry is in metres scaled to the model's units, centred on the site, Y axis = true north, flat (z = 0).
-# Fetched data is cached for 30 days in the temp folder; set refresh to fetch again.
+# Geometry is in metres scaled to the model's units, centred on the site, Y axis = true north. z = 0 is the ground at
+# the site (datum gives its AHD height); the curves stay flat at z = 0 for modelling, while the ground, buildings,
+# streets and trees follow the terrain. Fetched data is cached for 30 days in the temp folder; set refresh to fetch again.
 import datetime as dt
 import gzip
 import hashlib
@@ -24,6 +33,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import Rhino
 import Rhino.Geometry as rg
+
+import alien_vicdata as vd
 
 UA = {"User-Agent": "Alien/2.0 (Grasshopper site map node)"}
 VICMAP = "https://services-ap1.arcgis.com/P744lA0wf4LlBZ84/ArcGIS/rest/services"
@@ -865,11 +876,193 @@ def cached(text, radius, again):
     return data, False
 
 
+# ── layers v2: terrain, streets, trees (each cached on its own, so toggling one doesn't refetch the rest) ──
+
+def layer(name, fetcher):
+    """-> (data, error). A fetched layer for this site and radius, cached for CACHE_DAYS; refresh fetches again."""
+    key = hashlib.sha1(json.dumps([data["origin"], round(radius, 1), name, 2]).encode()).hexdigest()[:16]
+    path = os.path.join(CACHE_DIR, "%s-%s.json" % (key, name))
+    if not refresh and os.path.exists(path) and time.time() - os.path.getmtime(path) < CACHE_DAYS * 86400:
+        with open(path) as f:
+            return json.load(f), None
+    try:
+        out = fetcher()
+    except Exception as ex:
+        return None, "%s: %s" % (type(ex).__name__, ex)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(out, f)
+    return out, None
+
+
+PAVED_ZONES = re.compile(r"^(CCZ|CDZ|ACZ|C1Z|MUZ|DZ|PDZ)")  # central, commercial and mixed-use streets: verges paved
+
+
+def offset_path(pts, d):
+    """A polyline offset d to its left (mitred corners, mitre limited to 2 x d)."""
+    out = []
+    for k in range(len(pts)):
+        normals = []
+        for (ax, ay), (bx, by) in ([(pts[k - 1], pts[k])] if k > 0 else []) + ([(pts[k], pts[k + 1])] if k < len(pts) - 1 else []):
+            length = math.hypot(bx - ax, by - ay)
+            normals.append((-(by - ay) / length, (bx - ax) / length))
+        nx_, ny_ = sum(n[0] for n in normals), sum(n[1] for n in normals)
+        length = math.hypot(nx_, ny_)
+        nx_, ny_ = (nx_ / length, ny_ / length) if length > 1e-9 else normals[0]
+        m = d / max(nx_ * normals[0][0] + ny_ * normals[0][1], 0.5)
+        out.append((pts[k][0] + nx_ * m, pts[k][1] + ny_ * m))
+    return out
+
+
+def band(pts, a, b):
+    """Closed outline (metres, z = 0) of the strip between the offsets a and b (left positive) of a polyline."""
+    ring = offset_path(pts, b) + offset_path(pts, a)[::-1]
+    return rg.PolylineCurve([rg.Point3d(x, y, 0) for x, y in ring + ring[:1]])
+
+
+def dedupe(pts):
+    out = [pts[0]]
+    for p in pts[1:]:
+        if math.dist(p, out[-1]) > 0.05:
+            out.append(p)
+    return out
+
+
+class Shapes(object):
+    """Overlapping closed curves, found through a 10 m grid: a point is in the set when any curve contains it."""
+
+    CELL = 10.0
+
+    def __init__(self, curves):
+        self.cells = {}
+        for c in curves:
+            if not (c and c.IsClosed):
+                continue
+            bb = c.GetBoundingBox(True)
+            for i in range(int(bb.Min.X // self.CELL), int(bb.Max.X // self.CELL) + 1):
+                for j in range(int(bb.Min.Y // self.CELL), int(bb.Max.Y // self.CELL) + 1):
+                    self.cells.setdefault((i, j), []).append(c)
+
+    def __contains__(self, pt):
+        for c in self.cells.get((int(pt.X // self.CELL), int(pt.Y // self.CELL)), ()):
+            if c.Contains(pt, rg.Plane.WorldXY, TOL) == rg.PointContainment.Inside:
+                return True
+        return False
+
+
+def union(curves):
+    curves = [c for c in curves if c and c.IsClosed]
+    if len(curves) < 2:
+        return curves
+    out = rg.Curve.CreateBooleanUnion(curves, TOL)
+    return list(out) if out else curves
+
+
+TOL = 0.001  # m: the street layout is built in metres, then scaled
+KERB_H, ROAD_LIFT = 0.15, 0.05  # verges sit a kerb above the road; roads float 5 cm over the terrain mesh (no z-fighting)
+
+
+def street_surfaces(records, reserves, box, ground):
+    """
+    Road reserves split into carriageway, footpath and nature strip (meshes draped on the ground), plus kerb faces.
+    Each centreline's cross-section becomes bands (carriageway, median, nature strip); the bands, the measured
+    reserve polygons and the context box are overlaid into planar regions, and each region takes the class of the
+    bands it falls in: carriageway, else nature strip (grass verge or median), else footpath.
+    """
+    cbands, nbands, rbands = [], [], []
+    for r in records:
+        cw, med = r.get("carriageway_m") or 0, r.get("median_m") or 0
+        if cw <= 0:
+            continue
+        paths = r["coords"] if r["coords"] and isinstance(r["coords"][0][0], list) else [r["coords"]]
+        for path in paths:
+            pts = dedupe([to_xy(*v) for v in path])
+            if len(pts) < 2:
+                continue
+            c = offset_path(pts, r.get("centre_offset_m") or 0.0)  # centre the section in the measured reserve
+            half = med / 2 + cw / 2
+            cbands += [band(c, med / 2, half), band(c, -half, -med / 2)] if med > 0 else [band(c, -cw / 2, cw / 2)]
+            if (r.get("nature_strip_m") or 0) > 0 or med > 0:
+                nbands.append(band(c, -(half + (r.get("nature_strip_m") or 0)), half + (r.get("nature_strip_m") or 0)))
+            if r.get("reserve_width_m") is None:  # no reserve polygon measured: the class's typical verges
+                rbands.append(band(c, -(half + (r.get("verge_m") or 0)), half + (r.get("verge_m") or 0)))
+    reserve_curves = []
+    for rings in reserves:  # outer rings only: holes in road reserves are rare slivers
+        ring = dedupe([to_xy(*v) for v in rings[0]])
+        if len(ring) >= 4:
+            reserve_curves.append(rg.PolylineCurve([rg.Point3d(x, y, 0) for x, y in ring[:-1] + ring[:1]] if ring[0] == ring[-1] else
+                                                   [rg.Point3d(x, y, 0) for x, y in ring + ring[:1]]))
+    R, C, N = union(reserve_curves + cbands + rbands), union(cbands), union(nbands)
+    inR, inC, inN = Shapes(reserve_curves + cbands + rbands), Shapes(cbands), Shapes(nbands)  # the small originals: fast tests
+    x0, y0, x1, y1 = box
+    frame_curve = rg.PolylineCurve([rg.Point3d(x0, y0, 0), rg.Point3d(x1, y0, 0), rg.Point3d(x1, y1, 0), rg.Point3d(x0, y1, 0), rg.Point3d(x0, y0, 0)])
+
+    def kind(pt):
+        if not (x0 < pt.X < x1 and y0 < pt.Y < y1) or pt not in inR:
+            return None
+        return "carriageway" if pt in inC else "nature_strip" if pt in inN else "footpath"
+
+    regions = rg.Curve.CreateBooleanRegions(R + C + N + [frame_curve], rg.Plane.WorldXY, False, TOL)
+    if regions is None:
+        raise RuntimeError("could not split the road reserves into regions")
+    mp = rg.MeshingParameters.FastRenderMesh
+    mp.MaximumEdgeLength = 1.5  # small enough to follow the terrain
+    mp.SimplePlanes = False
+    meshes = {"carriageway": rg.Mesh(), "footpath": rg.Mesh(), "nature_strip": rg.Mesh()}
+    road_edges = []
+    for i in range(regions.RegionCount):
+        curves = list(regions.RegionCurves(i))
+        breps = rg.Brep.CreatePlanarBreps(curves, TOL) or []
+        for b in breps:
+            m = rg.Mesh()
+            for piece in rg.Mesh.CreateFromBrep(b, mp) or []:
+                m.Append(piece)
+            if m.Faces.Count == 0:
+                continue
+            k = kind(m.Faces.GetFaceCenter(0))
+            if k is None:
+                continue
+            lift = ROAD_LIFT if k == "carriageway" else ROAD_LIFT + KERB_H
+            for v in range(m.Vertices.Count):
+                p = m.Vertices[v]
+                m.Vertices.SetVertex(v, p.X, p.Y, ground(p.X, p.Y) + lift)
+            meshes[k].Append(m)
+            if k == "carriageway":
+                road_edges += curves
+    # kerbs: carriageway edges with a raised verge on the other side
+    kerb = rg.Mesh()
+    for c in road_edges:
+        ts = c.DivideByLength(1.0, True) or []
+        run = []
+        for t in list(ts) + [None]:
+            ok = False
+            if t is not None:
+                p, tan = c.PointAt(t), c.TangentAt(t)
+                n = rg.Vector3d(-tan.Y, tan.X, 0) * 0.25
+                sides = (kind(p + n), kind(p - n))
+                ok = "carriageway" in sides and ("footpath" in sides or "nature_strip" in sides)
+            if ok:
+                run.append(p)
+                continue
+            for a, b in zip(run, run[1:]):
+                za, zb = ground(a.X, a.Y), ground(b.X, b.Y)
+                i0 = kerb.Vertices.Count
+                kerb.Vertices.Add(a.X, a.Y, za + ROAD_LIFT)
+                kerb.Vertices.Add(b.X, b.Y, zb + ROAD_LIFT)
+                kerb.Vertices.Add(b.X, b.Y, zb + ROAD_LIFT + KERB_H)
+                kerb.Vertices.Add(a.X, a.Y, za + ROAD_LIFT + KERB_H)
+                kerb.Faces.AddFace(i0, i0 + 1, i0 + 2, i0 + 3)
+            run = []
+    meshes["kerb"] = kerb
+    return meshes
+
+
 # ── geometry ────────────────────────────────────────────────────────
 
 doc = Rhino.RhinoDoc.ActiveDoc
 scale = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, doc.ModelUnitSystem) if doc else 1.0
 units = doc.ModelUnitSystem.ToString().lower() if doc else "meters"
+to_model = rg.Transform.Scale(rg.Point3d.Origin, scale)
 
 
 def curve(points, closed):
@@ -879,12 +1072,17 @@ def curve(points, closed):
     return rg.PolylineCurve(pts)
 
 
-def extrude(c, h):
+def extrude(c, h, base=0.0):
     if c.ClosedCurveOrientation(rg.Plane.WorldXY) == rg.CurveOrientation.Clockwise:
         c = c.DuplicateCurve()
         c.Reverse()
     ext = rg.Extrusion.Create(c, h * scale, True)
-    return ext.ToBrep() if ext else None
+    if not ext:
+        return None
+    b = ext.ToBrep()
+    if base:
+        b.Translate(0, 0, base * scale)
+    return b
 
 
 text = (address or "").strip()
@@ -892,7 +1090,7 @@ if not text:
     raise ValueError("Give an address (e.g. '201 Napier Street, Fitzroy VIC 3065') or lat,lon.")
 radius = min(max(radius or 60.0, 10.0), 300.0)
 data, from_cache = cached(text, radius, bool(refresh))
-to_xy, _ = frame(*data["origin"])
+to_xy, to_ll = frame(*data["origin"])
 
 site_local = [[to_xy(*v) for v in r] for r in data["site"]]
 site = [curve(r, True) for r in site_local]
@@ -902,6 +1100,7 @@ short, long_ = min_rect([p for r in site_local for p in r])
 lots = [curve([to_xy(*v) for v in r], True) for rings in data["lots"] for r in rings]
 xs, ys = [p[0] for r in site_local for p in r], [p[1] for r in site_local for p in r]
 box = (min(xs) - radius, min(ys) - radius, max(xs) + radius, max(ys) + radius)
+(lon_w, lat_s), (lon_e, lat_n) = to_ll(box[0], box[1]), to_ll(box[2], box[3])
 roads, road_names = [], []
 for name, paths in data["roads"]:
     for path in paths:
@@ -909,17 +1108,149 @@ for name, paths in data["roads"]:
             roads.append(curve(piece, False))
             road_names.append(name)
 
-footprints, buildings, known = [], [], {}
+site_zones = [z["zone_code"] for z in data["zones"] if z["extent"] == "site"]
+paved = any(PAVED_ZONES.match(z or "") for z in site_zones)
+spacing = max(2.0, max(box[2] - box[0], box[3] - box[1]) / 200.0)  # terrain grid: 2 m, at most 201 x 201 points
+gnx, gny = int(round((box[2] - box[0]) / spacing)) + 1, int(round((box[3] - box[1]) / spacing)) + 1
+jobs = {}
+if terrain:
+    jobs["terrain-%dx%d" % (gnx, gny)] = lambda: dict(zip(("grid", "source", "res"), vd.elevation_grid(lon_w, lat_s, lon_e, lat_n, gnx, gny)))
+if streets:
+    jobs["streets-paved" if paved else "streets"] = lambda: vd.streets(lon_w, lat_s, lon_e, lat_n, paved_verges=paved)
+if trees:
+    jobs["trees"] = lambda: vd.trees(lon_w, lat_s, lon_e, lat_n)
+layers, layer_errors = {}, {}
+with ThreadPoolExecutor(max_workers=3) as pool:
+    futures = {k: pool.submit(layer, k, fn) for k, fn in jobs.items()}
+    for k, fut in futures.items():
+        name = k.split("-")[0]
+        layers[name], err = fut.result()
+        if err:
+            layer_errors[name] = err
+
+# ground: bilinear on the grid, metres relative to the datum (the ground at the site centre)
+grid = (layers.get("terrain") or {}).get("grid")
+datum = 0.0
+if grid:
+    valid = [v for row in grid for v in row if v is not None]
+    gdx, gdy = (box[2] - box[0]) / (gnx - 1), (box[3] - box[1]) / (gny - 1)
+
+    def ahd(x, y):
+        fx = min(max((x - box[0]) / gdx, 0), gnx - 1.000001)
+        fy = min(max((y - box[1]) / gdy, 0), gny - 1.000001)
+        i, j = int(fx), int(fy)
+        ax, ay = fx - i, fy - j
+        corners = [(grid[j][i], (1 - ax) * (1 - ay)), (grid[j][i + 1], ax * (1 - ay)),
+                   (grid[j + 1][i], (1 - ax) * ay), (grid[j + 1][i + 1], ax * ay)]
+        w = sum(wt for v, wt in corners if v is not None)
+        return sum(v * wt for v, wt in corners if v is not None) / w if w > 0 else None
+
+    centre = ahd(0.0, 0.0)
+    datum = round(centre if centre is not None else sum(valid) / len(valid), 2)
+
+    def ground(x, y):
+        z = ahd(x, y)
+        return (z if z is not None else datum) - datum
+else:
+    valid = []
+
+    def ground(x, y):
+        return 0.0
+
+ground_mesh, contours = None, []
+if grid and valid:
+    ground_mesh = rg.Mesh()
+    index = {}
+    for j in range(gny):
+        for i in range(gnx):
+            if grid[j][i] is not None:
+                index[(i, j)] = ground_mesh.Vertices.Add((box[0] + i * gdx) * scale, (box[1] + j * gdy) * scale, (grid[j][i] - datum) * scale)
+    for j in range(gny - 1):
+        for i in range(gnx - 1):
+            q = [index.get(k) for k in ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))]
+            if None not in q:
+                ground_mesh.Faces.AddFace(*q)
+    ground_mesh.Normals.ComputeNormals()
+    ground_mesh.Compact()
+    if contour_step and contour_step > 0:
+        level = math.ceil(min(valid) / contour_step) * contour_step
+        while level <= max(valid):
+            plane = rg.Plane(rg.Point3d(0, 0, (level - datum) * scale), rg.Vector3d.ZAxis)
+            for pl in rg.Intersect.Intersection.MeshPlane(ground_mesh, plane) or []:
+                contours.append(rg.PolylineCurve(pl))
+            level += contour_step
+
+footprints, buildings, known, building_rings = [], [], {}, []
 for ring, h, how, ds in data["buildings"]:
-    c = curve([to_xy(*v) for v in ring], True)
+    local = [to_xy(*v) for v in ring]
+    cx, cy = sum(p[0] for p in local[:-1]) / max(len(local) - 1, 1), sum(p[1] for p in local[:-1]) / max(len(local) - 1, 1)
+    if not (box[0] <= cx <= box[2] and box[1] <= cy <= box[3]):
+        continue  # mostly outside the context (a tile reached further): it would hang off the ground
+    c = curve(local, True)
     footprints.append(c)
     if h is not None:
         known[ds or "unknown"] = known.get(ds or "unknown", 0) + 1
     height = h if h is not None else assumed_height
+    building_rings.append((local, height))
     if height and height > 0:
-        b = extrude(c, height)
+        base = min(ground(x, y) for x, y in local) if grid else 0.0  # stand on the lowest ground under the footprint
+        b = extrude(c, height, base)
         if b:
             buildings.append(b)
+
+carriageway = footpath = nature_strip = kerb = None
+street_note = None
+st = layers.get("streets")
+if st:
+    try:
+        surf = street_surfaces(st["roads"], st["reserves"], box, ground)
+        for m in surf.values():
+            m.Transform(to_model)
+            m.Normals.ComputeNormals()
+            m.Compact()
+        carriageway, footpath, nature_strip, kerb = surf["carriageway"], surf["footpath"], surf["nature_strip"], surf["kerb"]
+        measured = sum(1 for r in st["roads"] if r.get("reserve_width_m") is not None)
+        street_note = "Streets: %d centrelines, %d fitted to measured road reserves, the rest at class defaults; verges %s" % (
+            len(st["roads"]), measured, "paved (central / commercial zone)" if paved else "with nature strips where wide enough")
+    except Exception as ex:
+        layer_errors["streets"] = "%s: %s" % (type(ex).__name__, ex)
+
+canopy = trunk = None
+tree_note = None
+tr = layers.get("trees")
+if tr is not None:
+    canopy, trunk = rg.Mesh(), rg.Mesh()
+    unit = rg.Mesh.CreateFromSphere(rg.Sphere(rg.Point3d.Origin, 1.0), 16, 10)
+    shown = roof = species = 0
+    for t in tr:
+        x, y = to_xy(t["lon"], t["lat"])
+        if not (box[0] < x < box[2] and box[1] < y < box[3]):
+            continue
+        h = t["height_m"] if t["height_m"] is not None and t["height_m"] >= 1.5 else t["height_est_m"] or 5.0
+        under = next((bh for ring, bh in building_rings if in_rings(x, y, [ring])), None)
+        if under is not None and (h > 45 or (under and h > 0.7 * under)):
+            roof += 1  # the LiDAR read the roof under it, not a tree
+            continue
+        rx = max(t.get("canopy_rx_m") or t.get("canopy_radius_m") or 2.0, 0.6)
+        ry = max(t.get("canopy_ry_m") or t.get("canopy_radius_m") or 2.0, 0.6)
+        depth = max(1.0, min(0.6 * h, h - 1.8))
+        z0 = ground(x, y)
+        crown = unit.DuplicateMesh()
+        crown.Transform(rg.Transform.Translation(x, y, z0 + h - depth / 2) * rg.Transform.Scale(rg.Plane.WorldXY, rx, ry, depth / 2))
+        canopy.Append(crown)
+        r = min(max(0.012 * h + 0.05, 0.08), 0.5)
+        stem = rg.Mesh.CreateFromCylinder(rg.Cylinder(rg.Circle(rg.Plane(rg.Point3d(x, y, z0), rg.Vector3d.ZAxis), r), h - depth / 2), 1, 8)
+        trunk.Append(stem)
+        shown += 1
+        species += 1 if t.get("species") else 0
+    for m in (canopy, trunk):
+        m.Transform(to_model)
+        m.Normals.ComputeNormals()
+    tree_note = ("Trees: %d from Vicmap Tree Urban (crowns from 2019 imagery, heights from 2017-18 LiDAR)%s%s" % (
+        shown, ("; %d on roofs left out" % roof) if roof else "", ("; species known for %d (City of Melbourne)" % species) if species else "")
+        if tr else "Trees: none here (Vicmap Tree Urban covers metro Melbourne, Ballarat, Shepparton, Wangaratta and Sale)")
+ground = ground_mesh
+
 
 def label(z):
     return "%s - %s%s" % (z["zone_code"], nice(z["zone_description"]), "" if z["extent"] == "site" else " (edge only)")
@@ -930,6 +1261,7 @@ lga = next((z["lga"] for z in data["zones"] + data["overlays"] if z.get("lga")),
 lga_nice = lga.title() if lga else None
 
 g = data["geocode"]
+terrain_info = layers.get("terrain")
 lines = [
     data["address"][0] + (" (+%d more)" % (len(data["address"]) - 1) if len(data["address"]) > 1 else ""),
     "Found via %s%s" % (g["how"], "" if g["how"] != "OpenStreetMap" else ": " + g["label"]),
@@ -943,12 +1275,22 @@ lines = [
         len(footprints), data.get("buildings_source") or "nowhere", sum(known.values()),
         ", ".join("%d %s" % (v, k) for k, v in sorted(known.items())) or "none",
         ("; the rest at an assumed %g m" % assumed_height) if assumed_height else "; the rest left flat"),
-    "Geometry: %s, centred on the site (lat %.6f, lon %.6f), Y = true north, z = 0" % (units, data["origin"][1], data["origin"][0]),
-    "Sources: Vicmap (State of Victoria, CC BY 4.0); Overture Maps Foundation and OpenStreetMap contributors (ODbL). Retrieved %s%s."
-    % (data["retrieved"], ", from cache" if from_cache else ""),
+]
+if grid and valid:
+    lines.append("Terrain: %s on a %.1f m grid, %.1f-%.1f m AHD; z = 0 is %.2f m AHD (the ground at the site centre)" % (
+        terrain_info["source"], spacing, min(valid), max(valid), datum))
+if street_note:
+    lines.append(street_note)
+if tree_note:
+    lines.append(tree_note)
+lines += [
+    "Geometry: %s, centred on the site (lat %.6f, lon %.6f), Y = true north; curves flat at z = 0%s" % (
+        units, data["origin"][1], data["origin"][0], ", ground, buildings, streets and trees on the terrain" if grid and valid else ""),
+    "Sources: Vicmap (State of Victoria, CC BY 4.0); Overture Maps Foundation and OpenStreetMap contributors (ODbL)%s. Retrieved %s%s."
+    % ("; DEM of Australia from LiDAR 5 m (Geoscience Australia, CC BY 4.0)" if grid else "", data["retrieved"], ", from cache" if from_cache else ""),
     "Not a Planning Property Report: confirm with VicPlan before relying on it.",
 ]
-for k, err in data["errors"].items():
+for k, err in list(data["errors"].items()) + list(layer_errors.items()):
     lines.append("WARNING %s failed: %s" % (k, err))
     print("%s failed: %s" % (k, err))
 if "Microsoft ML Buildings" in known:
