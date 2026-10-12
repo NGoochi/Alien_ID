@@ -57,7 +57,7 @@ def parse_token(tok):
     p = {"name": name, "type": typ, "access": access}
     if desc:
         p["description"] = desc
-    for k, v in re.findall(r'\b(min|max|step|decimals|default|options)\s*=\s*("[^"]*"|\[[^\]]*\]|[^\s,]+)', meta):
+    for k, v in re.findall(r'\b(min|max|step|decimals|default|options|suggest)\s*=\s*("[^"]*"|\[[^\]]*\]|[^\s,]+)', meta):
         v = v.strip('"')
         if k in ("min", "max", "step"):
             p[k] = float(v) if "." in v or "e" in v.lower() else int(v)
@@ -65,14 +65,19 @@ def parse_token(tok):
             p[k] = int(v)
         elif k == "options":
             p[k] = v.split("|")
+        elif k == "suggest":
+            p["suggest"] = v
         elif typ == "bool":
             p[k] = {"true": True, "false": False}.get(v.lower(), v)
         elif typ in ("float", "int") and re.fullmatch(r"-?\d+(\.\d+)?", v):
             p[k] = float(v) if "." in v else int(v)
         else:
             p[k] = v
-    if typ == "bool" and re.search(r"(^|\s)button(\s|$)", re.sub(r'"[^"]*"', "", meta)):
+    bare = re.sub(r'"[^"]*"', "", meta)
+    if typ == "bool" and re.search(r"(^|\s)button(\s|$)", bare):
         p["control"] = "button"
+    if typ == "str" and re.search(r"(^|\s)image(\s|$)", bare):
+        p["control"] = "image"
     return p
 
 
@@ -156,14 +161,21 @@ SUITE = {
             "(reserve <= 7.5 m) wall to wall with no kerb; verges paved in central/commercial zones (CCZ, CDZ, ACZ, C1Z, MUZ, DZ, PDZ). "
             "Bands and reserves are overlaid into planar regions, classified, meshed and draped on the ground; verges sit a "
             "150 mm kerb above the road, with kerb faces between.",
-            "Trees: Vicmap Vegetation Tree Urban points with LiDAR height and canopy half-widths, drawn as ellipsoid crowns on "
-            "trunks. Trees under 1.5 m get a height from their canopy; points inside a building footprint reading roof height "
-            "are left out. Species from the City of Melbourne inventory inside that council.",
+            "Trees: Vicmap Vegetation Tree Urban points with LiDAR height and canopy half-widths, modelled by shape: broad "
+            "(clumps of lumpy low-poly blobs on a split trunk with limbs), columnar, eucalypt (open high crown), conifer "
+            "(stacked cones) or palm (trunk and fronds), from the species where known (City of Melbourne) else from "
+            "proportions, seeded per tree. Trees under 1.5 m get a height from their canopy; points inside a building "
+            "footprint reading roof height are left out.",
             "Geometry is in metres scaled to the model's units, centred on the site, Y = true north. z = 0 is the ground at "
             "the site centre (datum gives its AHD height). Curves stay flat at z = 0 for modelling; ground, buildings, streets "
             "and trees follow the terrain.",
             "Fetched data is cached for 30 days in the temp folder (alien-cache/vic_site_map), each v2 layer on its own; "
-            "refresh fetches again once.",
+            "refresh (a button) fetches again once.",
+            "Data is fetched for a context bucket (60, 120, 200 or 300 m) and trimmed to the radius, so sliding the radius "
+            "within a bucket refetches nothing.",
+            "The address field suggests Victorian addresses while typing (Vicmap address index, about 0.1 s per lookup).",
+            "If Vicmap's ArcGIS property/parcel layers fail (as after a republish on 12 Oct 2026), the same layers are read "
+            "from the open-data WFS and info says so.",
         ],
         "data_sources": ["Vicmap Address, Property, Parcel, Transport, Planning, Elevation, Vegetation (State of Victoria, CC BY 4.0)",
                          "DEM of Australia from LiDAR 5 m (Geoscience Australia, CC BY 4.0)",
@@ -226,12 +238,17 @@ SUITE = {
         "summary": "A material finish becomes a seamless tileable texture: a Custom Preview material, a 3 x 3 tile preview at "
                    "real size, and (add) a Rhino PBR material mapped at real-world size.",
         "behaviour": [
+            "Only the generate button calls the image model: a new finish or variant waits for it; a texture painted before "
+            "comes back free. The texture is keyed by finish and variant, never by size.",
+            "size is the real-world size of one tile: moving it re-tiles the same texture for free; Generate again repaints "
+            "at the new scale.",
             "The image model paints a flat, evenly lit swatch about size metres across.",
             "Seam check: if the wrap-around edges jump more than 1.35 x the texture's own detail, the image is rolled half a "
             "tile and cross-faded over the seam cross; already-tiling patterns are left as drawn (blending them ghosts).",
             "add (a button) creates or replaces a PBR render material: base colour + bump, WCS box mapping, one tile per size "
             "metres, so it needs no UV mapping.",
-            "Textures are cached in <repo>/.alien/cache/textures and saved to the asset library.",
+            "Textures are cached in <repo>/.alien/cache/textures; each painted texture is saved once to the asset library "
+            "(its seamless version).",
         ],
         "cost": "About US$0.034 per texture; free from the cache.",
         "checked": ["Board-formed concrete, 1.2 m tile: both textures in WCS box mapping at the right repeat."],
@@ -256,9 +273,12 @@ SUITE = {
     "scale_figure.py": {
         "summary": "An image model draws a person as a black silhouette, traced into true-height outlines, a planar fill and a "
                    "solid hatch for elevations and sections.",
-        "behaviour": ["Tracing: marching squares with sub-pixel edges, small islands and gaps dropped by detail, Douglas-Peucker "
+        "behaviour": ["Only the generate button calls the image model: a new who, view or variant waits for it; drawings made "
+                      "before come back free. Height, detail, smooth and plane only re-trace or re-place the drawing.",
+                      "Tracing: marching squares with sub-pixel edges, small islands and gaps dropped by detail, Douglas-Peucker "
                       "simplification, smooth closed curves with a polyline fallback.",
-                      "A blank, cut-off or non-white drawing is redrawn once with a stricter prompt.",
+                      "A blank, cut-off or non-white drawing is redrawn once with a stricter prompt, only while Generate runs; "
+                      "the check uses a fixed detail so the detail slider never causes a redraw.",
                       "Stands in the XZ plane at the origin (Front view) unless a plane is wired.",
                       "Drawings are cached in <repo>/.alien/cache/graphics and saved to the asset library."],
         "cost": "About US$0.034 per drawing; free from the cache.",
@@ -267,8 +287,9 @@ SUITE = {
     "scale_tree.py": {
         "summary": "An image model draws a tree in elevation or plan, traced into true-size outlines (canopy gaps kept as "
                    "holes), a planar fill and a solid hatch.",
-        "behaviour": ["Elevation: sized by height, standing in XZ. Plan: sized by spread (0 = 0.75 x height), lying in XY.",
-                      "Same tracing, checks, cache and asset saving as scale_figure."],
+        "behaviour": ["Only the generate button calls the image model: a new species, view or variant waits for it.",
+                      "Elevation: sized by height, standing in XZ. Plan: sized by spread (0 = 0.75 x height), lying in XY.",
+                      "Same tracing, checks, cache and asset saving as scale_figure; a detailed tree (183 loops) solves in 0.6 s."],
         "cost": "About US$0.034 per drawing; free from the cache.",
         "checked": ["8 m street tree in elevation with 22 canopy gaps; 7 m canopy in plan."],
     },
@@ -371,8 +392,8 @@ DOC = {
                         "# Divides a curve into N points."],
             "rules": [
                 "First 200 lines; Python uses #, C# uses //. Several NODE_INPUTS / NODE_OUTPUTS lines are allowed.",
-                "Token: name:type [| \"description\"] [min= max= step= decimals= default= options=\"a|b|c\"] [button]. Commas "
-                "inside quotes are fine.",
+                "Token: name:type [| \"description\"] [min= max= step= decimals= default= options=\"a|b|c\" suggest=\"p\"] "
+                "[button] [image]. Commas inside quotes are fine.",
                 "Access: list[T], T[], T:list -> list; tree[T] -> tree (a list of branch lists); otherwise item.",
                 "default= accepts numbers, true/false, \"text\", [x,y,z].",
                 "Pin names are identities: renaming one drops its wires.",
@@ -400,6 +421,11 @@ DOC = {
              "shows 'working…' until it has run; never stored, saved or undone. For model calls and other slow, paid or "
              "side-effecting steps. set_values {name: true} presses it."},
             {"kind": "dropdown", "for": "str with options=", "behaviour": "Picks one of the options."},
+            {"kind": "image field", "for": "str with the word image", "behaviour": "Takes an image file or link dropped on the "
+             "node (its path or URL) and shows a thumbnail; typing a path or URL works too."},
+            {"kind": "suggestions", "for": "str with suggest=\"vic-address\"", "behaviour": "A list drawn under the text box "
+             "follows the typing (Vicmap addresses, about 0.1 s a lookup, from the street number on); arrow keys + Enter or "
+             "a click pick one."},
             {"kind": "text field", "for": "str, and lists of str/float/int typed as 'a, b, c'", "behaviour": "Edited in place; Enter commits."},
         ],
         "runtime_controls": {
@@ -420,6 +446,8 @@ DOC = {
             {"section": "Settings", "items": ["Script repository…", "Open settings file (model, API key)"]},
         ],
         "double_click": "Selects the node and opens the panel (on a slider: type its value).",
+        "while_describing": "The node's controls are locked (dimmed) while describe-a-node writes its script, because the "
+                            "retry loop judges the next solve.",
         "saved_with_the_gh": ["the script reference", "the header snapshot (so opening a file doesn't rebuild pins)",
                               "manual values and the NODE_CONTROLS key each was set under", "the describe transcript (last 50)",
                               "whether controls show"],
@@ -511,7 +539,8 @@ DOC = {
         "conventions": ["Comments explain why; plain names; C# 9 / net7.0.", "MCP output stays compact JSON.",
                         "Header ranges and defaults are UI: give them in every node.",
                         "Suite nodes speak metres, scale to the model's units and show sample geometry when unwired.",
-                        "Paid, slow or side-effecting steps go behind a button input.",
+                        "Paid, slow or side-effecting steps go behind a button input; slider and toggle values never go into "
+                        "a model prompt or cache key.",
                         "Keep README, AGENTS.md, DEV_NOTES, AGENT_GUIDE and this file in step with behaviour."],
     },
     "roadmap": ["Phase 2: a Cloudflare Worker, R2 and D1 for a shared library of nodes and generated assets (publish and "

@@ -1200,7 +1200,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
 
                 int layerIndex = string.IsNullOrWhiteSpace(layer) ? rdoc.Layers.CurrentLayerIndex : EnsureLayer(rdoc, layer);
                 var result = new JObject();
-                int total = 0, skipped = 0, removed = 0;
+                int total = 0, skipped = 0, removed = 0, invalid = 0;
                 var perParam = new JObject();
                 foreach (var p in sources)
                 {
@@ -1216,6 +1216,23 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                             var att = rdoc.CreateDefaultAttributes();
                             att.LayerIndex = layerIndex;
                             att.SetUserString(BakeKey, tag);
+                            // Geometry is added here, not through Grasshopper's bake: that stops on invalid meshes with a
+                            // modal "Invalid geometry" dialog, which freezes Rhino (and this server) until someone clicks.
+                            if ((goo as Grasshopper.Kernel.Types.IGH_GeometricGoo)?.ScriptVariable() is GeometryBase geo)
+                            {
+                                if (!geo.IsValid && geo is Mesh mesh)
+                                {
+                                    mesh = mesh.DuplicateMesh();
+                                    mesh.Faces.CullDegenerateFaces();
+                                    mesh.Vertices.CombineIdentical(true, true);
+                                    mesh.Compact();
+                                    geo = mesh;
+                                }
+                                if (!geo.IsValid) { invalid++; continue; }
+                                if (rdoc.Objects.Add(geo, att) != Guid.Empty) n++;
+                                else skipped++;
+                                continue;
+                            }
                             if (goo is IGH_BakeAwareData bakeable && bakeable.BakeGeometry(rdoc, att, out Guid gid))
                             {
                                 if (gid != Guid.Empty) n++;
@@ -1230,6 +1247,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                 result["baked"] = total;
                 result["per_output"] = perParam;
                 if (skipped > 0) result["not_bakeable"] = skipped;
+                if (invalid > 0) result["invalid_skipped"] = invalid;
                 if (removed > 0) result["replaced"] = removed;
                 result["layer"] = rdoc.Layers[layerIndex].FullPath;
                 return result;

@@ -1,12 +1,19 @@
 # NODE_INPUTS: finish:str | "the material finish" default="board-formed concrete", size:float | "real-world size one tile covers (m)" min=0.05 max=20 default=1.2
 # NODE_INPUTS: variant:int | "another texture for the same finish" min=0 max=50 default=0, seamless:bool | "blend the edges so tiles repeat without seams" default=true
+# NODE_INPUTS: generate:bool | "paint it with the image model (paid); a texture painted before comes back free" button
 # NODE_INPUTS: add:bool | "add (or update) the material in the Rhino document" button, name:str | "material name (default: the finish)" default=""
 # NODE_OUTPUTS: material | "display material: wire into Custom Preview", preview:list[Brep] | "3 x 3 tiles at real size, to see the repeat"
 # NODE_OUTPUTS: texture:str | "texture image file", name:str | "material name", info:str | "model, cost, seam check"
 # CATEGORY: Materials
 # Material texture: an image model paints a tileable texture for a finish, made seamless, as a preview material and a Rhino render material at real-world scale.
+#
+# Only Generate calls the image model: a new finish or variant waits for it; a texture painted before comes back free.
+# size is the real-world size of one tile: changing it re-tiles the same texture (Generate again to repaint it at
+# that scale). seamless, add and name never call the model.
 import base64
+import json
 import os
+import time
 
 import Grasshopper
 import Rhino
@@ -149,58 +156,88 @@ def add_material(doc, mat_name, texture_path, size_m):
 finish = (finish or "").strip() or "board-formed concrete"
 size = size if size and size > 0 else 1.2
 name = (name or "").strip() or finish.capitalize()
-prompt = prompt_for(finish, size) + ("" if not variant else " (Variation %d.)" % int(variant))
-data, meta = alien_ai.image(prompt, "1:1")
-
+model = alien_ai.setting("imageModel") or alien_ai.DEFAULT_IMAGE_MODEL
 out_dir = alien_ai.cache_dir("textures")
-key = alien_ai.key_of(meta["path"], WORK, bool(seamless))
-texture = os.path.join(out_dir, key + ".png")
-asset_params = {"size": size, "variant": int(variant or 0), "seamless": bool(seamless)}
+
+# The texture for this finish and variant, whatever tile size it is used at now (size is never part of the key).
+design = alien_ai.key_of("texture", model, " ".join(finish.lower().split()), int(variant or 0))
+index_path = os.path.join(out_dir, design + ".json")
+index, source = None, None
+if os.path.exists(index_path) and not generate:
+    with open(index_path) as f:
+        index = json.load(f)
+    source = "cache"
+else:
+    prompt = prompt_for(finish, size) + ("" if not variant else " (Variation %d.)" % int(variant))
+    got = alien_ai.image(prompt, "1:1", allow_new=bool(generate))  # painted before at this size: free
+    if got is not None:
+        data, meta = got
+        index = {"image": meta["path"], "prompt": prompt, "model": meta["model"], "drawn_at_size": size,
+                 "cost": 0.0 if meta["cached"] else (meta["cost"] or 0), "seconds": meta.get("seconds"),
+                 "created": time.strftime("%Y-%m-%d %H:%M")}
+        with open(index_path, "w") as f:
+            json.dump(index, f)
+        source = "cache" if meta["cached"] else "model"
+
+material, preview, texture = None, [], ""
 before = after = None
-if not os.path.exists(texture):
-    w, h, bpp, px = decode(data, WORK)
-    before = seam_error(w, h, bpp, px)
-    if seamless and before > SEAM_LIMIT:   # blending already-tileable patterns (boards, bricks) only adds ghosting
-        px = make_seamless(w, h, bpp, px)
-        after = seam_error(w, h, bpp, px)
-    with open(texture, "wb") as f:
-        f.write(encode_png(w, h, bpp, px))
-if not alien_assets.exists("texture", prompt, asset_params):
-    try:
-        with open(texture, "rb") as f:
-            png = f.read()
-        alien_assets.save("texture", finish, prompt, asset_params,
-                          "material_texture", files={"texture.png": png}, thumbnail=alien_assets.thumbnail_from_image(png),
-                          extra={"size_m": size, "inputs": {"finish": finish, "size": size, "variant": int(variant or 0),
-                                                            "seamless": bool(seamless)}})
-    except Exception as ex:
-        print("could not save to the asset library: %s" % ex)
+if index is None:
+    info = ("Press Generate to paint '%s' with %s (about US$0.034; nothing is sent until you do). "
+            "Textures painted before come back free." % (finish, model))
+    print("Waiting for Generate")
+else:
+    with open(index["image"], "rb") as f:
+        data = f.read()
+    texture = os.path.join(out_dir, alien_ai.key_of(index["image"], WORK, bool(seamless)) + ".png")
+    if not os.path.exists(texture):
+        w, h, bpp, px = decode(data, WORK)
+        before = seam_error(w, h, bpp, px)
+        if seamless and before > SEAM_LIMIT:   # blending already-tileable patterns (boards, bricks) only adds ghosting
+            px = make_seamless(w, h, bpp, px)
+            after = seam_error(w, h, bpp, px)
+        with open(texture, "wb") as f:
+            f.write(encode_png(w, h, bpp, px))
+    # One asset per painted texture, its seamless version only, so toggling seamless never adds a duplicate.
+    # (size 'drawn_at_size' and seamless True keep the ids of textures saved before this change.)
+    asset_params = {"size": index["drawn_at_size"], "variant": int(variant or 0), "seamless": True}
+    if seamless and not alien_assets.exists("texture", index["prompt"], asset_params):
+        try:
+            with open(texture, "rb") as f:
+                png = f.read()
+            alien_assets.save("texture", finish, index["prompt"], asset_params,
+                              "material_texture", files={"texture.png": png}, thumbnail=alien_assets.thumbnail_from_image(png),
+                              extra={"size_m": index["drawn_at_size"], "inputs": {"finish": finish, "size": size,
+                                                                                  "variant": int(variant or 0), "seamless": True}})
+        except Exception as ex:
+            print("could not save to the asset library: %s" % ex)
 
 doc = Rhino.RhinoDoc.ActiveDoc
 units = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, doc.ModelUnitSystem) if doc else 1.0
-base = Rhino.DocObjects.Material()
-base.DiffuseColor = System.Drawing.Color.White
-base.SetBitmapTexture(texture)
-display = Rhino.Display.DisplayMaterial(base)
-material = Grasshopper.Kernel.Types.GH_Material(display)  # Custom Preview's material input only takes GH's own type
+if index is not None:
+    base = Rhino.DocObjects.Material()
+    base.DiffuseColor = System.Drawing.Color.White
+    base.SetBitmapTexture(texture)
+    display = Rhino.Display.DisplayMaterial(base)
+    material = Grasshopper.Kernel.Types.GH_Material(display)  # Custom Preview's material input only takes GH's own type
 
-tile = size * units
-preview = []
-for i in range(3):
-    for j in range(3):
-        srf = rg.PlaneSurface(rg.Plane(rg.Point3d(i * tile, j * tile, 0), rg.Vector3d.ZAxis), rg.Interval(0, tile), rg.Interval(0, tile))
-        preview.append(srf.ToBrep())
+    tile = size * units
+    for i in range(3):
+        for j in range(3):
+            srf = rg.PlaneSurface(rg.Plane(rg.Point3d(i * tile, j * tile, 0), rg.Vector3d.ZAxis), rg.Interval(0, tile), rg.Interval(0, tile))
+            preview.append(srf.ToBrep())
 
-added = ""
-if add and doc:
-    add_material(doc, name, texture, size)
-    added = "Added to the document as '%s' (base colour + bump, one tile per %.2f m)." % (name, size)
+    added = ""
+    if add and doc:
+        add_material(doc, name, texture, size)
+        added = "Added to the document as '%s' (base colour + bump, one tile per %.2f m)." % (name, size)
 
-info = "\n".join(l for l in [
-    "%s: one tile = %.2f m, %d px" % (finish, size, WORK),
-    "Painted by %s, %s" % (meta["model"], "from cache" if meta["cached"] else "%.1f s, US$%.3f" % (meta["seconds"], meta["cost"] or 0)),
-    ("Seam check: edges %.1fx the texture's own detail before, %.1fx after blending" % (before, after)) if after is not None else
-    ("Seam check: edges %.1fx the texture's own detail: %s" % (before, "already tiles, left as drawn" if seamless else "seamless off"))
-    if before is not None else "",
-    added,
-] if l)
+    info = "\n".join(l for l in [
+        "%s: one tile = %.2f m, %d px%s" % (finish, size, WORK, "" if abs(size - index["drawn_at_size"]) < 1e-9 else
+                                            " (painted at about %.2f m a tile; Generate repaints at this size)" % index["drawn_at_size"]),
+        "Painted by %s, %s" % (index["model"], "from cache (free)" if source == "cache" else
+                               "%.1f s, US$%.3f" % (index.get("seconds") or 0, index.get("cost") or 0)),
+        ("Seam check: edges %.1fx the texture's own detail before, %.1fx after blending" % (before, after)) if after is not None else
+        ("Seam check: edges %.1fx the texture's own detail: %s" % (before, "already tiles, left as drawn" if seamless else "seamless off"))
+        if before is not None else "",
+        added,
+    ] if l)

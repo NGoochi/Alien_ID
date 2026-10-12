@@ -22,7 +22,9 @@ namespace Alien.Scripting
         int? Decimals,
         string Default,       // raw default token (number, true/false, string, JSON), resolved per type
         string Options = null, // options="a|b|c": the choices for a dropdown on the node
-        bool Button = false)   // `button` on a bool: a momentary button (true for one solve) instead of a switch
+        bool Button = false,   // `button` on a bool: a momentary button (true for one solve) instead of a switch
+        string Suggest = null, // suggest="vic-address": suggestions while typing (Ui/Suggest.cs providers)
+        bool Image = false)    // `image` on a str: accepts a dropped image file or URL and shows a thumbnail
     {
         public string[] Choices => string.IsNullOrWhiteSpace(Options)
             ? Array.Empty<string>()
@@ -53,7 +55,7 @@ namespace Alien.Scripting
 
     /// <summary>
     /// Parses `NODE_INPUTS:` / `NODE_OUTPUTS:` comment lines (`#` for Python, `//` for C#).
-    /// Token grammar: name[:type] [| "description"] [min= max= step= decimals= default= options="a|b"] [button]
+    /// Token grammar: name[:type] [| "description"] [min= max= step= decimals= default= options="a|b" suggest="p"] [button] [image]
     /// Tolerated variants: list[T], List[T], list&lt;T&gt;, T[], T:list, tree[T], T:tree, metadata without `|`.
     /// </summary>
     public static class HeaderParser
@@ -66,7 +68,8 @@ namespace Alien.Scripting
         private static readonly Regex Identifier = new Regex(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
         private static readonly Regex WrappedType = new Regex(@"^(list|tree)\s*[\[<]\s*(.+?)\s*[\]>]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex ButtonFlag = new Regex(@"(^|\s)button(\s|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly Regex KeyValue = new Regex(@"\b(min|max|step|decimals|default|options)\s*=\s*(""[^""]*""|\[[^\]]*\]|[^\s,]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImageFlag = new Regex(@"(^|\s)image(\s|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex KeyValue = new Regex(@"\b(min|max|step|decimals|default|options|suggest)\s*=\s*(""[^""]*""|\[[^\]]*\]|[^\s,]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex FreeRange = new Regex(@"Range\s*:\s*([-+]?\d*\.?\d+)\s*[-–—]\s*([-+]?\d*\.?\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static ScriptHeader Parse(string source)
@@ -202,7 +205,7 @@ namespace Alien.Scripting
 
             double? min = null, max = null, step = null;
             int? decimals = null;
-            string def = null, options = null;
+            string def = null, options = null, suggest = null;
             foreach (Match kv in KeyValue.Matches(rest))
             {
                 var key = kv.Groups[1].Value.ToLowerInvariant();
@@ -215,6 +218,7 @@ namespace Alien.Scripting
                     case "decimals": decimals = int.TryParse(val, out var d) ? d : null; break;
                     case "default": def = val.Trim('"'); break;
                     case "options": options = val.Trim('"'); break;
+                    case "suggest": suggest = val.Trim('"'); break;
                 }
             }
 
@@ -233,8 +237,10 @@ namespace Alien.Scripting
                 }
             }
 
-            bool button = type == "bool" && ButtonFlag.IsMatch(Regex.Replace(rest, "\"[^\"]*\"", ""));
-            return new ParamDef(name, type, access, description, min, max, step, decimals, def, options, button);
+            var bare = Regex.Replace(rest, "\"[^\"]*\"", ""); // flags are bare words, never inside quotes
+            bool button = type == "bool" && ButtonFlag.IsMatch(bare);
+            bool image = type == "str" && ImageFlag.IsMatch(bare);
+            return new ParamDef(name, type, access, description, min, max, step, decimals, def, options, button, suggest, image);
         }
 
         private static double? ParseDouble(string s) =>

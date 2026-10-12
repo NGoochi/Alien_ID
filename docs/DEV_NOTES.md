@@ -89,6 +89,21 @@ changes (no Rhino restart) and saved owner-only (it holds an API key).
   goes into `_pulse`, the node repaints ("working…") and `ScheduleSolution(15)` solves; `ReadInput` returns true for a
   pulsed, unwired input; `AfterSolveInstance` clears the pulses once the script has run. Pulses are never stored in
   manual values, saved or undone. `set_values` with `true` pulses too.
+- `image` on a str → `ParamDef.Image`. `ImageDrop.Attach` (called from `AlienAttributes.Render`, once per canvas)
+  adds DragEnter/DragOver/DragDrop handlers to the GH canvas; a drag over an Alien node with an unwired image input
+  (the row under the cursor, else the first) is accepted when it carries an image file (FileDrop) or an http(s) link,
+  and the drop sets the input through `SetInput` (undoable). Drops elsewhere are left to Grasshopper. Thumbnails
+  (64 px, `Image.FromFile`) are cached per path and file time, failures included. A real OS drag couldn't be simulated
+  from a shell (no Accessibility permission): the handler was tested by calling it with a DataObject.
+- `suggest="vic-address"` → `ParamDef.Suggest` → `Ui/Suggest.cs` providers. `InlineEditor` debounces typing (220 ms),
+  runs the provider on a worker thread and paints the list on the canvas under the field (`CanvasPostPaintObjects`);
+  arrow keys + Enter go through the TextBox, clicks through `InlineEditor.HandleClick` (from the node's
+  RespondToMouseDown, or the canvas MouseDown where the list sticks out past the node). The box's LostFocus defers
+  its commit so a click on the list wins.
+- Rhino for Mac's WinForms is partial: a ListBox keeps a zero size whatever SetBounds says, and creating a ListView
+  crashed Rhino. TextBox and ContextMenuStrip work. Paint anything else on the canvas.
+- While `IsDescribing`, `RespondToMouseDown` ignores control clicks and the controls draw dimmed: the Generator judges
+  the first solve after it writes the script, and a user's slider value causing an error there would go back to the model.
 - `NODE_CONTROLS` (Python): the epilogue `json.dumps` it into `__alien_controls__`, read back as `RunResult.Controls`,
   parsed into `ControlHint`s on iteration 0 of a successful run (no dict clears them). `NodeControls.Range` takes the
   hint's min/max/step/decimals over the header's; `NodeControls.Current` shows the hint's `value` while there is no

@@ -63,6 +63,10 @@ The id comes from what made it, so regenerating the same thing updates it. The p
 
 ## material_texture
 
+- **Only Generate paints.** A texture is keyed by finish and variant, never by size: `size` is the real-world size of one
+  tile, so moving it re-tiles the same texture for free (info notes the size it was painted at; Generate again repaints
+  at the new scale). Seamless on/off, `add` and `name` never call the model. Textures painted before this change are
+  found by their old prompt.
 - **How it works:** the image model paints a flat, evenly lit, tileable swatch of the finish at about `size` metres
   across. If its edges don't already match (seam check: edge jumps more than 1.35 × the texture's own detail), it is
   rolled half a tile and cross-faded over the seam cross. Already-tiling patterns (boards, bricks) are left as drawn,
@@ -88,6 +92,14 @@ The id comes from what made it, so regenerating the same thing updates it. The p
 - **Checked on 2026-10-12:** Fitzroy site on A1: plan 1:500, site plan 1:1000, sections and elevations 1:500; each
   named view restores with its clipping plane.
 
+## Paid calls: only Generate spends credits
+
+Every suite node that calls a model (object_3d, material_texture, scale_figure, scale_tree) has a **Generate**
+button. A new request (text, a dropdown choice, variant) waits for it, with nothing sent; a result made before comes
+back free from `.alien/cache`. Sliders and toggles (sizes, tile size, detail, smooth, plane) only rework the cached
+result. Checked on 2026-10-12: 20 slider moves across the four nodes and 7 description changes made no model calls and
+no new cache files.
+
 ## Context graphics (scale_figure, scale_tree)
 
 - **How it works:** an image model draws the subject as a black-on-white silhouette. The prompt is built from the inputs,
@@ -99,11 +111,13 @@ The id comes from what made it, so regenerating the same thing updates it. The p
   - smooth periodic curves, with a polyline fallback where a smooth fit would cross itself
   - scales the drawing so its height (or canopy width in plan) is true size, standing on the plane's origin
 - **Checks:** a drawing that is blank, cut off at the image edge, or has a non-white background is redrawn once with a
-  stricter prompt.
+  stricter prompt (only while Generate runs). The check uses a fixed detail, so the detail slider never causes a redraw.
+- **Speed:** fills are built per outline from the traced polylines; a detailed tree (183 loops) solves in 0.6 s
+  (it took about a minute when the fill was built from the smooth curves in one call).
 - **Model:** `imageModel` in settings.json, default `google/gemini-3.1-flash-lite-image`: about 4–9 s and US$0.034 per
   drawing. GPT-5 Image Mini draws crisper figures but took 34 s, too long while Grasshopper waits.
 - **Cache:** every drawing is cached in `<repository>/.alien/cache/graphics`. Changing size, detail or the plane costs
-  nothing (about 30–160 ms); `variant` asks for a new drawing of the same request.
+  nothing; a new who/species, view or `variant` waits for Generate.
 - **Outputs:** `outline` (curves), `fill` (planar Breps, which preview in Grasshopper), `hatch` (Rhino solid hatches:
   these don't preview in Grasshopper, but bake as real hatches), `image` (the drawing's file).
 - **Default placement:** figures and elevation trees stand in the XZ plane at the origin, as seen in the Front view; plan
@@ -134,6 +148,13 @@ The id comes from what made it, so regenerating the same thing updates it. The p
 
 ## vic_site_map
 
+- **Address suggestions:** typing in `address` lists matching Victorian addresses from Vicmap's address index
+  (`suggest="vic-address"`, about 0.1 s per lookup; arrow keys or a click pick one; it needs the street number first).
+- **Radius buckets:** data is fetched for a context bucket (60, 120, 200 or 300 m) and trimmed to `radius`, so sliding
+  the radius within a bucket refetches nothing.
+- **Vicmap outage fallback:** on 12 Oct 2026 Vicmap's ArcGIS property and parcel layers stopped answering spatial
+  queries after a republish. The node then reads the same layers from the open-data WFS (`v_property_mp_address`,
+  `v_parcel_mp`) and says so in `info`.
 - **Inputs:** `address` (or `lat,lon`), `radius` (context in metres, 10–300), `assumed_height` (for buildings with no
   known height; 0 leaves them flat), `refresh` (a button: fetch again once), and (v2) `terrain`, `streets`, `trees` toggles and `contour_step`.
 - **Outputs:**
@@ -153,7 +174,10 @@ The id comes from what made it, so regenerating the same thing updates it. The p
   and commercial zones (CCZ, ACZ, C1Z, MUZ, DZ...). The bands and reserves are overlaid into planar regions, each region
   classified, meshed and draped on the ground; verges sit a 150 mm kerb above the road, with kerb faces between.
 - **Trees (v2):** Vicmap Vegetation Tree Urban points (metro Melbourne, Ballarat, Shepparton, Wangaratta and Sale) with
-  LiDAR height and canopy half-widths: an ellipsoid crown and a trunk each. Trees under 1.5 m (planted after the LiDAR)
+  LiDAR height and canopy half-widths. Each is modelled by shape: broad (clumps of lumpy low-poly blobs round a split
+  trunk with limbs), columnar (stacked clumps), eucalypt (open, high crown on visible limbs), conifer (stacked cones) or
+  palm (slender trunk and drooping fronds). Shape comes from the species (City of Melbourne) where known, else from
+  proportions; each tree is seeded from its id, so it looks the same every run. Trees under 1.5 m (planted after the LiDAR)
   get a height from their canopy; points inside a building footprint that read roof height are left out. Species come
   from the City of Melbourne inventory inside that council.
 - **Data:**

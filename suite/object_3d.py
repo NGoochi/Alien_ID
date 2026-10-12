@@ -1,5 +1,5 @@
 # NODE_INPUTS: thing:str | "what to model" default="a dining chair", style:str | "style, materials, details (optional)" default=""
-# NODE_INPUTS: image:str | "reference image: file path or URL (optional)" default="", detail:str | "how much to model" default="detailed" options="simple|detailed"
+# NODE_INPUTS: image:str | "reference image: drop one on the node, or a file path or URL (optional)" default="" image, detail:str | "how much to model" default="detailed" options="simple|detailed"
 # NODE_INPUTS: variant:int | "another design for the same request" min=0 max=50 default=0
 # NODE_INPUTS: generate:bool | "build it with the model (paid); a design built before comes back free from the cache" button
 # NODE_INPUTS: width:float | "width (m); 0 = as built" min=0 max=10 default=0, depth:float | "depth (m); 0 = as built" min=0 max=10 default=0

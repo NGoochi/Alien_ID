@@ -82,8 +82,11 @@ def tree_prompt(species, view):
 
 # ── image model ──
 
-def image(prompt, aspect, variant=0, model=None, strict=False):
-    """-> (image bytes, info dict). Cached by (model, prompt, aspect, variant)."""
+def image(prompt, aspect, variant=0, model=None, strict=False, allow_new=True):
+    """
+    -> (image bytes, info dict), cached by (model, prompt, aspect, variant). With allow_new=False only the cache is
+    read, and None means the drawing hasn't been made yet (the node's Generate button makes it).
+    """
     model = model or setting("imageModel") or DEFAULT_IMAGE_MODEL
     text = prompt + (STRICT if strict else "") + ("" if not variant else " (Variation %d.)" % variant)
     key = hashlib.sha1(json.dumps([model, text, aspect]).encode()).hexdigest()[:20]
@@ -95,6 +98,8 @@ def image(prompt, aspect, variant=0, model=None, strict=False):
             meta = json.load(f)
         meta["cached"], meta["path"] = True, path + ".img"
         return data, meta
+    if not allow_new:
+        return None
 
     api_key = (setting("openrouterKey") or "").strip()
     if not api_key:
@@ -291,15 +296,28 @@ def check(loops, w, h):
     return None
 
 
-def silhouette(prompt, aspect, variant=0, detail=0.5, model=None):
-    """Prompt -> (loops, width, height, info). Redraws once with a stricter prompt if the drawing fails its check."""
+CHECK_DETAIL = 0.5  # the drawing is judged at a fixed detail, so the detail slider can never cause a redraw
+
+
+def silhouette(prompt, aspect, variant=0, detail=0.5, model=None, allow_new=True):
+    """
+    Prompt -> (loops, width, height, info), or None when allow_new is False and the drawing isn't cached yet.
+    A drawing that fails its check is redrawn once with a stricter prompt (only when drawing is allowed).
+    """
     notes, cost = [], 0.0
     for strict in (False, True):
-        data, meta = image(prompt, aspect, variant, model, strict)
+        got = image(prompt, aspect, variant, model, strict, allow_new)
+        if got is None:
+            return None
+        data, meta = got
         cost += 0 if meta.get("cached") else (meta.get("cost") or 0)
-        loops, w, h = trace(data, detail)
+        loops, w, h = trace(data, CHECK_DETAIL)
         problem = check(loops, w, h)
         if problem is None:
+            if detail != CHECK_DETAIL:
+                loops, w, h = trace(data, detail)
+                if not any(not hole for _, hole in loops):
+                    raise ValueError("Nothing is left of the drawing at detail %.2f: raise detail." % detail)
             meta["spent"] = cost
             meta["notes"] = notes
             return loops, w, h, meta
@@ -329,9 +347,10 @@ def place(loops, size, plane, fit="height", smooth=True):
         s, ox, oy = size / max(x1 - x0, y1 - y0), (x0 + x1) / 2.0, (y0 + y1) / 2.0
     s *= units
 
-    curves = []
+    curves, polys = [], []
     for loop, hole in loops:
         p3 = [plane.PointAt((x - ox) * s, (y - oy) * s) for x, y in loop]
+        polys.append(rg.PolylineCurve(p3 + [p3[0]]))
         c = None
         if smooth and len(p3) >= 5:
             c = rg.Curve.CreateInterpolatedCurve(p3 + [p3[0]], 3, rg.CurveKnotStyle.ChordPeriodic)  # repeat the start to close
@@ -339,7 +358,19 @@ def place(loops, size, plane, fit="height", smooth=True):
             if c is None or not c.IsClosed or (crossings is not None and crossings.Count):
                 c = None  # the smooth fit crossed itself: keep the polyline
         curves.append(c or rg.PolylineCurve(p3 + [p3[0]]))
-    fill = list(rg.Brep.CreatePlanarBreps(curves, tol) or [])
+    # Fill each outline with only its own holes, from the traced polylines (the smooth curves pass through the same
+    # points): planar Breps from smooth curves with many holes took about a minute for a detailed tree (183 loops).
+    outers = [i for i, (_, hole) in enumerate(loops) if not hole]
+    groups = {i: [polys[i]] for i in outers}
+    for i, (loop, hole) in enumerate(loops):
+        if not hole:
+            continue
+        around = [o for o in outers if inside(loop[0], loops[o][0])]
+        if around:
+            groups[min(around, key=lambda o: abs(area(loops[o][0])))].append(polys[i])  # the tightest outline round it
+    fill = []
+    for group in groups.values():
+        fill += list(rg.Brep.CreatePlanarBreps(group, tol) or [])
     hatch = list(rg.Hatch.Create(curves, 0, 0.0, 1.0, tol) or [])
     return curves, fill, hatch
 
