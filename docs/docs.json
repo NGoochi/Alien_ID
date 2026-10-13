@@ -1,7 +1,7 @@
 {
   "name": "Alien",
-  "version": "2.0.0",
-  "generated": "2026-10-12",
+  "version": "0.01-alpha",
+  "generated": "2026-10-13",
   "generator": "tools/docs_json.py (pins from the suite headers, categories from src/Library.cs, MCP tools from the server)",
   "summary": "Alien is a Grasshopper (Rhino 8) plugin: a node whose logic lives in a plain Python 3 or C# script file, with pins and on-node controls from a header comment. Describe a node in plain English and a model writes the script, runs it and fixes its own errors. Nodes are shareable files; AI agents drive everything through a built-in MCP server. It ships with a suite of architectural nodes and keeps what they generate in a library.",
   "status": "Working prototype for a uni mini-MBA pitch (mock business, no real sales). Phase 1 of BRIEF.md is done, plus the panel, library categories, the generated-asset library and the suite below. The online library, accounts and payments (Phases 2-3) are not built.",
@@ -51,7 +51,11 @@
       },
       {
         "path": "tools/",
-        "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, these docs"
+        "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, these docs, package.sh (the release zip)"
+      },
+      {
+        "path": "installer/",
+        "what": "The release zip's contents besides Alien.gha: INSTALL.md, README.txt, installers, settings example"
       },
       {
         "path": "BRIEF.md",
@@ -64,12 +68,13 @@
     ]
   },
   "install": {
+    "release": "Download Alien-<version>.zip from https://github.com/NGoochi/Alien_ID/releases, unzip, close Rhino and run install-mac.command (macOS; right-click > Open if Gatekeeper warns) or install-windows.bat (Windows; unblock the zip first). It copies Alien.gha into Grasshopper's Libraries folder and clears the download quarantine / Mark of the Web. Full steps: installer/INSTALL.md. Windows needs Rhino on .NET Core (SetDotNetRuntime).",
     "requirements": [
       "Rhino 8 (macOS or Windows)",
-      ".NET SDK 7 or later",
+      ".NET SDK 7 or later (building from source only)",
       "An OpenRouter API key for describe-a-node and the AI nodes (or Ollama for local describe models)"
     ],
-    "steps": [
+    "steps_from_source": [
       "Close Rhino completely (macOS: Cmd+Q).",
       "Run `dotnet build -c Release` in src/: it builds Alien.gha and copies it into Grasshopper's Libraries folder (Windows %APPDATA%\\Grasshopper\\Libraries; macOS ~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (b45a29b1-...)/Libraries). Rhino paths are in src/Alien.csproj (override with -p:RhinoSystemDir=... -p:RhinoGhDir=...).",
       "Start Rhino and open Grasshopper: the MCP server starts with it.",
@@ -1565,7 +1570,7 @@
       "Every tool that changes something returns the new state: don't poll."
     ],
     "server_instructions": "Alien: Grasshopper nodes backed by script files (Python 3 or C#) in the user's script repository.\nPins come from header comments ('//' instead of '#' in C#):\n  # NODE_INPUTS: pts:list[Point3d], n:int | \"count\" min=1 max=50 default=5\n  # NODE_OUTPUTS: curves, log\nUnwired input -> manual value (set_values) -> header default -> None/[] (C#: default(T)). Outputs are top-level variables with those names; nested lists become data trees.\nLoop: canvas -> add (python|csharp|any GH component; nodes+links for a whole chain) -> wire -> script_edit (returns ok/error+line/output summary) -> inspect / capture.\nPick Python for quick iteration and libraries; C# for heavy loops (simulations, 100k+ items) or strict typing.\nRhino side: doc (context, save, import), objects (list/select/zoom), layers (tree, visibility, materials), view (camera, display), rhino (commands, find, help). search finds GH components.\nIds are the 8-char ids from canvas/objects (a unique nickname also works for nodes). docs(topic) has syntax, types, gotchas.",
-    "read_from": "live server, 2026-10-12",
+    "read_from": "live server, 2026-10-13",
     "tools": [
       {
         "name": "canvas",

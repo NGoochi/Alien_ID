@@ -15,7 +15,7 @@ namespace Alien
         public override Guid Id => new Guid("D610DE6A-0FB9-41BD-9AE8-02295A9BBA00");
         public override string AuthorName => "Nick Gauci";
         public override string AuthorContact => "";
-        public override string Version => "2.0.0";
+        public override string Version => "0.01-alpha";
     }
 
     /// <summary>Start the MCP server when Grasshopper loads, so an agent can create the first node itself.</summary>

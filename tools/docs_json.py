@@ -331,15 +331,22 @@ DOC = {
             {"path": "docs/DEV_NOTES.md", "what": "Developer facts: build, threading, pin rebuilds, RhinoCode, UI, Rhino API facts, data"},
             {"path": "docs/docs.json", "what": "This file (tools/docs_json.py writes it)"},
             {"path": "tests/describe/", "what": "Describe-a-node test: 10 prompts, results per model"},
-            {"path": "tools/", "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, these docs"},
+            {"path": "tools/", "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, these docs, "
+                                       "package.sh (the release zip)"},
+            {"path": "installer/", "what": "The release zip's contents besides Alien.gha: INSTALL.md, README.txt, installers, settings example"},
             {"path": "BRIEF.md", "what": "Product brief: tiers, stack, phases"},
             {"path": "AGENTS.md / CLAUDE.md", "what": "Project context for coding agents"},
         ],
     },
     "install": {
-        "requirements": ["Rhino 8 (macOS or Windows)", ".NET SDK 7 or later",
+        "release": "Download Alien-<version>.zip from https://github.com/NGoochi/Alien_ID/releases, unzip, close Rhino and "
+                   "run install-mac.command (macOS; right-click > Open if Gatekeeper warns) or install-windows.bat (Windows; "
+                   "unblock the zip first). It copies Alien.gha into Grasshopper's Libraries folder and clears the download "
+                   "quarantine / Mark of the Web. Full steps: installer/INSTALL.md. Windows needs Rhino on .NET Core "
+                   "(SetDotNetRuntime).",
+        "requirements": ["Rhino 8 (macOS or Windows)", ".NET SDK 7 or later (building from source only)",
                          "An OpenRouter API key for describe-a-node and the AI nodes (or Ollama for local describe models)"],
-        "steps": [
+        "steps_from_source": [
             "Close Rhino completely (macOS: Cmd+Q).",
             "Run `dotnet build -c Release` in src/: it builds Alien.gha and copies it into Grasshopper's Libraries folder "
             "(Windows %APPDATA%\\Grasshopper\\Libraries; macOS ~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/"

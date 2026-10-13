@@ -1,0 +1,7 @@
+{
+  "openrouterKey": "paste-your-OpenRouter-key-here",
+  "model": "anthropic/claude-haiku-5.5",
+  "model3d": "anthropic/claude-sonnet-5.5",
+  "imageModel": "google/gemini-3.1-flash-lite-image",
+  "editor": "code"
+}

@@ -13,3 +13,6 @@ settings.json
 .alien/
 *.3dmbak
 *.ghbak
+
+# release packages (tools/package.sh)
+dist/

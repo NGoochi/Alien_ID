@@ -133,6 +133,19 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
 - **Captures of a backgrounded Rhino** don't show display textures or freshly baked objects' shading. Verify materials
   through the API (or ask the user to look), not from a capture.
 
+## Releases
+
+- **Version:** `src/AlienInfo.cs` (`Version`), `src/Mcp/McpServer.cs` (`Version`) and `src/Alien.csproj`
+  (`InformationalVersion`; `Version` must stay numeric) say the same thing, e.g. `0.01-alpha`.
+- **Package:** `bash tools/package.sh` builds without deploying and writes `dist/Alien-<version>.zip` (Alien.gha +
+  `installer/` files, Windows scripts with CRLF) and its `.sha256`. `dist/` is git-ignored.
+- **Check before publishing:** quit Rhino, run the zip's `install-mac.command`, start Rhino, and confirm `/health`
+  reports the new version and nodes solve.
+- **Publish:** merge to main, then `gh release create v<version> dist/Alien-<version>.zip dist/Alien-<version>.zip.sha256
+  --prerelease --title "Alien <version>"`.
+- 0.01-alpha (13 Oct 2026) was built on macOS; the same .gha should load on Windows (Rhino 8 on .NET Core) but is
+  untested there.
+
 ## Conventions
 
 - **Match the surrounding code:** comments explain why, not what; names are plain; C# 9, net7.0.
