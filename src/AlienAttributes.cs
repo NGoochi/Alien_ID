@@ -146,6 +146,7 @@ namespace Alien
 
         protected override void Render(GH_Canvas canvas, Graphics g, GH_CanvasChannel channel)
         {
+            ImageDrop.Attach(canvas); // image inputs take drops; once per canvas
             if (channel == GH_CanvasChannel.Wires) { base.Render(canvas, g, channel); return; }
             if (channel != GH_CanvasChannel.Objects) return;
 
@@ -214,6 +215,8 @@ namespace Alien
                     if (r.Kind == ControlKind.None) continue;
                     if (!r.Active) { g.DrawString("wired", f, dimBrush, r.Control, left); continue; }
                     DrawControl(g, f, r);
+                    if (c.IsDescribing)  // locked until describe-a-node finishes
+                        using (var lb = new SolidBrush(Color.FromArgb(150, IoBg))) g.FillRectangle(lb, r.Control);
                 }
                 for (int i = 0; i < c.Params.Output.Count; i++)
                 {
@@ -326,8 +329,22 @@ namespace Alien
                     }
                     var text = NodeControls.AsText(value);
                     var inner = new RectangleF(rc.X + 5, rc.Y, rc.Width - (r.Kind == ControlKind.Choice ? 18 : 8), rc.Height);
+                    if (r.Def.Image)
+                    {
+                        // image inputs show the picture at the field's right end, and say they take drops
+                        var thumb = ImageDrop.Thumbnail(text);
+                        if (thumb != null)
+                        {
+                            float side = rc.Height - 2;
+                            var tr = new RectangleF(rc.Right - side - 1, rc.Y + 1, side, side);
+                            float k = Math.Min(side / thumb.Width, side / thumb.Height);
+                            g.DrawImage(thumb, tr.X + (side - thumb.Width * k) / 2, tr.Y + (side - thumb.Height * k) / 2, thumb.Width * k, thumb.Height * k);
+                            inner.Width -= side + 2;
+                        }
+                        if (text.Length > 0) text = System.IO.Path.GetFileName(text.TrimEnd('/')) is string fn && fn.Length > 0 ? fn : text;
+                    }
                     using (var tb = new SolidBrush(text.Length > 0 ? Text : Dim))
-                        g.DrawString(text.Length > 0 ? text : "type…", f, tb, inner,
+                        g.DrawString(text.Length > 0 ? text : r.Def.Image ? "drop an image…" : "type…", f, tb, inner,
                             new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap });
                     if (r.Kind == ControlKind.Choice)
                         using (var ab = new SolidBrush(Dim)) g.DrawString("▾", f, ab, new RectangleF(rc.Right - 14, rc.Y, 12, rc.Height),
@@ -352,10 +369,13 @@ namespace Alien
         {
             if (e.Button != MouseButtons.Left) return base.RespondToMouseDown(sender, e);
             var pt = e.CanvasLocation;
+            if (InlineEditor.HandleClick(pt)) return GH_ObjectResponse.Handled; // a pick from a suggestion list over this node
             if (_panelButton.Contains(pt)) { SelectOnly(sender); AlienPanel.Open(); return GH_ObjectResponse.Handled; }
 
             var r = _rows.FirstOrDefault(x => x.Active && x.Control.Contains(pt));
             if (r == null) return base.RespondToMouseDown(sender, e);
+            // While a model is writing the script, its retry loop judges the next solve: no input changes until it's done.
+            if (Owner.IsDescribing) return GH_ObjectResponse.Handled;
             var value = NodeControls.Current(Owner, r.Def);
             switch (r.Kind)
             {
@@ -433,7 +453,12 @@ namespace Alien
             {
                 var token = NodeControls.FromText(r.Def, typed);
                 if (token != null) Owner.SetInput(r.Def.Name, token);
-            }, Family);
+            }, Family, suggest: Suggest.Find(r.Def.Suggest));
+
+        /// <summary>The image input whose field (or row) is under a canvas point, for drops.</summary>
+        internal ParamDef ImageInputAt(PointF pt) =>
+            _rows.FirstOrDefault(x => x.Def?.Image == true && x.Param.SourceCount == 0 &&
+                                      (x.Control.Contains(pt) || x.Label.Contains(pt) || (pt.Y >= x.Label.Top && pt.Y <= x.Label.Bottom)))?.Def;
 
         /// <summary>Double-click a slider to type its value; anywhere else, select the node and open the Alien panel.</summary>
         public override GH_ObjectResponse RespondToMouseDoubleClick(GH_Canvas sender, GH_CanvasMouseEvent e)

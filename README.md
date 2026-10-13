@@ -27,7 +27,8 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 - **Controls built from the header:** an unwired number input gets a slider. The header's `min`/`max` set its range;
   without them a range is recommended from the default. A `bool` gets a switch, `str` a text field, and
   `str ... options="a|b|c"` a dropdown, and `bool ... button` a momentary button (true for one solve: for model calls
-  and other slow or paid steps, so re-solving never repeats them). A script can retune its sliders after a run
+  and other slow or paid steps, so re-solving never repeats them). `str ... image` takes an image dropped on the node
+  and shows a thumbnail; `str ... suggest="vic-address"` suggests addresses while you type. A script can retune its sliders after a run
   (`NODE_CONTROLS`): `object_3d`'s size sliders show and span the size of what it built. Wired inputs collapse to their pin. Values save with the `.gh`, can be undone, and
   are the same values agents set over MCP.
 - **The Alien panel:** it sits glued to the side of the Grasshopper window and moves with it, or docks in Rhino. It
@@ -51,10 +52,12 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
   | Node | What it does |
   |---|---|
-  | `vic_site_map` | A Victorian address becomes the lot, neighbouring lots, roads, terrain and contours, 3D streets (carriageway, kerbs, footpaths, nature strips), trees, building massing on the ground, zone and overlays (Vicmap, Geoscience Australia, Overture Maps) |
+  | `vic_site_map` | A Victorian address (suggested as you type) becomes the lot, neighbouring lots, roads, terrain and contours, 3D streets (carriageway, kerbs, footpaths, nature strips), trees, building massing on the ground, zone and overlays (Vicmap, Geoscience Australia, Overture Maps) |
   | `site_views` | Plan, site plan, X/Y centreline sections and four elevations around the site as Rhino named views (sections clipped), and an optional layout sheet at standard scales |
   | `object_3d` | Describe a thing ("a dining chair"), or give a picture, and a model writes the code that builds it from solids at real size |
   | `material_texture` | A finish ("board-formed concrete") becomes a seamless texture and a Rhino material at real-world scale |
+
+  Every node that calls a model has a **Generate** button: only that spends credits. Sliders rework the cached result.
   | `levels` | Building levels from z0, each with its own height |
   | `branch_picker` | Passes chosen branches of a data tree through |
   | `scale_figure`, `scale_tree` | An image model draws a person or tree, traced into true-size outlines, fills and hatches for elevations and plans |

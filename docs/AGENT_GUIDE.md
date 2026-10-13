@@ -25,6 +25,10 @@ First 200 lines. Python uses `#`, C# uses `//`. Several `NODE_INPUTS` lines are 
 - `bool` with the word `button` (`go:bool | "build it" button`) is a momentary button: true for one solve when clicked,
   false otherwise, never saved. Use it for anything slow, paid or with side effects (model calls, fetching again,
   writing to the Rhino document), so re-solving never repeats it. Agents press it with `set_values {"go": true}`.
+- `str` with the word `image` (`ref:str | "reference" image`) takes an image dropped on the node (its path) or a pasted
+  link, and shows a thumbnail. `str` with `suggest="vic-address"` suggests Victorian addresses while typing.
+- Never put a value a slider or toggle changes into a model prompt or a cache key: key paid results on the request
+  (text, choices, variant) and apply sizes, detail and placement to the cached result.
 - Access: `list[T]` / `T[]` / `T:list` → list; `tree[T]` → tree (arrives as a list of branch lists); default item.
 - `default=` accepts numbers, `true/false`, `"text"`, `[x,y,z]`.
 - Names are pin identities: renaming a pin drops its wires. Keep names stable.

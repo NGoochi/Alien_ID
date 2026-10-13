@@ -123,6 +123,13 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
 - **Rhino views and layouts** (site_views): see docs/DEV_NOTES.md "Rhino API facts". The ones that cost most:
   `page.SetActiveDetail(id)` before changing a detail's camera; clipping planes keep the side their normal points to;
   a named view records the clipping planes active in the viewport it was saved from.
+- **Vicmap services change under us:** on 12 Oct 2026 a republish broke spatial queries on the ArcGIS property and
+  parcel layers (attribute queries still worked); vic_site_map now falls back to the open-data WFS twins. WFS CQL
+  geometry literals there are lat/lon (`POINT(lat lon)`), output coordinates lon/lat.
+- **Rhino for Mac's WinForms is partial:** ListBox stays 0 x 0, ListView crashes Rhino. TextBox and ContextMenuStrip
+  work; draw other UI on the canvas (the address suggestion list is painted).
+- **Don't open old .gh files from a script in the user's Rhino:** an AutoSave holding the old AlienNode (v0.2.0) raised
+  a modal "Unrecognized Objects" dialog that blocked Rhino (and the MCP) until the user closed it.
 - **Captures of a backgrounded Rhino** don't show display textures or freshly baked objects' shading. Verify materials
   through the API (or ask the user to look), not from a capture.
 

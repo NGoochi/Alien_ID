@@ -89,8 +89,15 @@ def load_image(src):
     """A reference image from a file path or an http(s) URL -> (bytes, mime)."""
     src = (src or "").strip().strip('"')
     if src.lower().startswith(("http://", "https://")):
+        path = os.path.join(cache_dir("downloads"), key_of(src))  # fetched once, not on every solve
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                data = f.read()
+            return data, sniff_mime(data) or "image/png"
         with urllib.request.urlopen(urllib.request.Request(src, headers=UA), timeout=30) as r:
             data, mime = r.read(), r.headers.get_content_type()
+        with open(path, "wb") as f:
+            f.write(data)
     else:
         with open(os.path.expanduser(src), "rb") as f:
             data = f.read()
@@ -126,8 +133,11 @@ def chat(messages, model, max_tokens=6000, temperature=0.2, reasoning="low"):
 DEFAULT_IMAGE_MODEL = "google/gemini-3.1-flash-lite-image"
 
 
-def image(prompt, aspect="1:1", model=None):
-    """-> (image bytes, meta). Cached by (model, prompt, aspect) in <repository>/.alien/cache/images."""
+def image(prompt, aspect="1:1", model=None, allow_new=True):
+    """
+    -> (image bytes, meta). Cached by (model, prompt, aspect) in <repository>/.alien/cache/images. With
+    allow_new=False only the cache is read and None means it hasn't been made (a node's Generate button makes it).
+    """
     model = model or setting("imageModel") or DEFAULT_IMAGE_MODEL
     path = os.path.join(cache_dir("images"), key_of(model, prompt, aspect))
     if os.path.exists(path + ".img"):
@@ -137,6 +147,8 @@ def image(prompt, aspect="1:1", model=None):
             meta = json.load(f)
         meta.update(cached=True, path=path + ".img")
         return data, meta
+    if not allow_new:
+        return None
     t = time.time()
     body = {"model": model, "modalities": ["image", "text"], "messages": [{"role": "user", "content": prompt}]}
     if model.startswith("google/"):

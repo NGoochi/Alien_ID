@@ -1,4 +1,4 @@
-# NODE_INPUTS: address:str | "Victorian street address, or lat,lon" default="201 Napier Street, Fitzroy VIC 3065"
+# NODE_INPUTS: address:str | "Victorian street address (suggestions as you type), or lat,lon" default="201 Napier Street, Fitzroy VIC 3065" suggest="vic-address"
 # NODE_INPUTS: radius:float | "context around the site (m)" min=10 max=300 default=60
 # NODE_INPUTS: assumed_height:float | "height for buildings with no known height (m); 0 = leave them flat" min=0 max=60 default=7
 # NODE_INPUTS: refresh:bool | "fetch again instead of using the cache" button
@@ -86,10 +86,48 @@ def arcgis(layer, geometry, gtype, fields="*", geom=False, where="1=1", **extra)
          "geometry": json.dumps(geometry), "geometryType": gtype, "inSR": 4326,
          "spatialRel": "esriSpatialRelIntersects"}
     p.update(extra)
-    out = http(layer + "/query", p, post=True)
-    if "error" in out:
-        raise RuntimeError(out["error"].get("message", "ArcGIS error"))
-    return out.get("features", [])
+    try:
+        out = http(layer + "/query", p, post=True)
+        if "error" in out:
+            raise RuntimeError(out["error"].get("message", "ArcGIS error"))
+        return out.get("features", [])
+    except Exception:
+        if layer not in WFS_TWINS:
+            raise
+        FALLBACKS.add(WFS_TWINS[layer])
+        return wfs_query(WFS_TWINS[layer], geometry, gtype, fields, geom, where, extra.get("resultRecordCount", 2000))
+
+
+# The same Vicmap layers on the open-data GeoServer. On 12 Oct 2026 a republish broke every spatial query on the ArcGIS
+# property and parcel layers ("Invalid query parameters") while attribute queries kept working.
+WFS_TWINS = {PROPERTIES: "v_property_mp_address", PARCELS: "v_parcel_mp"}
+FALLBACKS = set()
+
+
+def wfs_query(layer, geometry, gtype, fields, geom, where, limit):
+    """An ArcGIS-style query answered from the WFS twin: features as {"attributes", "geometry": {"rings"}}."""
+    ll = lambda lon, lat: "%.8f %.8f" % (lat, lon)  # CQL geometry here is lat/lon; the output is lon/lat
+    filters = [where] if where and where != "1=1" else []
+    if not filters or gtype != "esriGeometryPoint":  # an attribute lookup (prop_pfi=...) needs no geometry test
+        if gtype == "esriGeometryPoint":
+            filters.append("INTERSECTS(geom, POINT(%s))" % ll(geometry["x"], geometry["y"]))
+        elif gtype == "esriGeometryMultipoint":
+            filters.append("INTERSECTS(geom, MULTIPOINT(%s))" % ", ".join("(%s)" % ll(*pt) for pt in geometry["points"]))
+        elif gtype == "esriGeometryEnvelope":
+            filters.append("BBOX(geom, %.8f, %.8f, %.8f, %.8f)" % (geometry["ymin"], geometry["xmin"], geometry["ymax"], geometry["xmax"]))
+        elif gtype == "esriGeometryPolygon":
+            rings = ", ".join("(%s)" % ", ".join(ll(*v) for v in r) for r in geometry["rings"])
+            filters.append("INTERSECTS(geom, POLYGON(%s))" % rings)
+    props = ",".join(f for f in fields.split(",") if f and f != "*") + (",geom" if geom else "")
+    res = http(ADDRESS_WFS, {"service": "WFS", "version": "1.1.0", "request": "GetFeature", "typeName": "open-data-platform:" + layer,
+                             "outputFormat": "application/json", "srsName": "EPSG:4326", "maxFeatures": limit,
+                             "propertyName": props, "CQL_FILTER": " AND ".join(filters)}, timeout=30)
+    out = []
+    for f in res.get("features", []):
+        g = f.get("geometry") or {}
+        polys = g.get("coordinates", []) if g.get("type") == "MultiPolygon" else [g.get("coordinates", [])] if g.get("type") == "Polygon" else []
+        out.append({"attributes": f.get("properties", {}), "geometry": {"rings": [ring for poly in polys for ring in poly]} if geom else None})
+    return out
 
 
 def sql(s):
@@ -880,7 +918,7 @@ def cached(text, radius, again):
 
 def layer(name, fetcher):
     """-> (data, error). A fetched layer for this site and radius, cached for CACHE_DAYS; refresh fetches again."""
-    key = hashlib.sha1(json.dumps([data["origin"], round(radius, 1), name, 2]).encode()).hexdigest()[:16]
+    key = hashlib.sha1(json.dumps([data["origin"], fetch_radius, name, 2]).encode()).hexdigest()[:16]
     path = os.path.join(CACHE_DIR, "%s-%s.json" % (key, name))
     if not refresh and os.path.exists(path) and time.time() - os.path.getmtime(path) < CACHE_DAYS * 86400:
         with open(path) as f:
@@ -1066,8 +1104,12 @@ to_model = rg.Transform.Scale(rg.Point3d.Origin, scale)
 
 
 def curve(points, closed):
-    pts = [rg.Point3d(x * scale, y * scale, 0) for x, y in points]
-    if closed and pts[0].DistanceTo(pts[-1]) > 1e-9:
+    pts = []
+    for x, y in points:  # WFS rings repeat vertices: a zero-length segment makes the polyline invalid
+        p = rg.Point3d(x * scale, y * scale, 0)
+        if not pts or p.DistanceTo(pts[-1]) > 1e-6 * scale:
+            pts.append(p)
+    if closed and pts[0].DistanceTo(pts[-1]) > 1e-6 * scale:
         pts.append(pts[0])
     return rg.PolylineCurve(pts)
 
@@ -1089,7 +1131,10 @@ text = (address or "").strip()
 if not text:
     raise ValueError("Give an address (e.g. '201 Napier Street, Fitzroy VIC 3065') or lat,lon.")
 radius = min(max(radius or 60.0, 10.0), 300.0)
-data, from_cache = cached(text, radius, bool(refresh))
+# Fetch a whole context bucket and trim to the radius asked for: sliding the radius within a bucket costs nothing.
+FETCH_RADII = (60.0, 120.0, 200.0, 300.0)
+fetch_radius = next(r for r in FETCH_RADII if r >= radius - 1e-9)
+data, from_cache = cached(text, fetch_radius, bool(refresh))
 to_xy, to_ll = frame(*data["origin"])
 
 site_local = [[to_xy(*v) for v in r] for r in data["site"]]
@@ -1097,10 +1142,23 @@ site = [curve(r, True) for r in site_local]
 area = round(abs(sum(ring_area(r) for r in site_local)), 1)
 short, long_ = min_rect([p for r in site_local for p in r])
 
-lots = [curve([to_xy(*v) for v in r], True) for rings in data["lots"] for r in rings]
 xs, ys = [p[0] for r in site_local for p in r], [p[1] for r in site_local for p in r]
-box = (min(xs) - radius, min(ys) - radius, max(xs) + radius, max(ys) + radius)
-(lon_w, lat_s), (lon_e, lat_n) = to_ll(box[0], box[1]), to_ll(box[2], box[3])
+box = (min(xs) - radius, min(ys) - radius, max(xs) + radius, max(ys) + radius)                    # what is shown
+fbox = (min(xs) - fetch_radius, min(ys) - fetch_radius, max(xs) + fetch_radius, max(ys) + fetch_radius)  # what is fetched
+(lon_w, lat_s), (lon_e, lat_n) = to_ll(fbox[0], fbox[1]), to_ll(fbox[2], fbox[3])
+
+
+def overlaps(points, b, margin=0.0):
+    px, py = [p[0] for p in points], [p[1] for p in points]
+    return min(px) <= b[2] + margin and max(px) >= b[0] - margin and min(py) <= b[3] + margin and max(py) >= b[1] - margin
+
+
+lots = []
+for rings in data["lots"]:
+    for r in rings:
+        local = [to_xy(*v) for v in r]
+        if overlaps(local, box):
+            lots.append(curve(local, True))
 roads, road_names = [], []
 for name, paths in data["roads"]:
     for path in paths:
@@ -1110,8 +1168,8 @@ for name, paths in data["roads"]:
 
 site_zones = [z["zone_code"] for z in data["zones"] if z["extent"] == "site"]
 paved = any(PAVED_ZONES.match(z or "") for z in site_zones)
-spacing = max(2.0, max(box[2] - box[0], box[3] - box[1]) / 200.0)  # terrain grid: 2 m, at most 201 x 201 points
-gnx, gny = int(round((box[2] - box[0]) / spacing)) + 1, int(round((box[3] - box[1]) / spacing)) + 1
+spacing = max(2.0, max(fbox[2] - fbox[0], fbox[3] - fbox[1]) / 200.0)  # terrain grid: 2 m, at most 201 x 201 points
+gnx, gny = int(round((fbox[2] - fbox[0]) / spacing)) + 1, int(round((fbox[3] - fbox[1]) / spacing)) + 1
 jobs = {}
 if terrain:
     jobs["terrain-%dx%d" % (gnx, gny)] = lambda: dict(zip(("grid", "source", "res"), vd.elevation_grid(lon_w, lat_s, lon_e, lat_n, gnx, gny)))
@@ -1133,11 +1191,11 @@ grid = (layers.get("terrain") or {}).get("grid")
 datum = 0.0
 if grid:
     valid = [v for row in grid for v in row if v is not None]
-    gdx, gdy = (box[2] - box[0]) / (gnx - 1), (box[3] - box[1]) / (gny - 1)
+    gdx, gdy = (fbox[2] - fbox[0]) / (gnx - 1), (fbox[3] - fbox[1]) / (gny - 1)
 
     def ahd(x, y):
-        fx = min(max((x - box[0]) / gdx, 0), gnx - 1.000001)
-        fy = min(max((y - box[1]) / gdy, 0), gny - 1.000001)
+        fx = min(max((x - fbox[0]) / gdx, 0), gnx - 1.000001)
+        fy = min(max((y - fbox[1]) / gdy, 0), gny - 1.000001)
         i, j = int(fx), int(fy)
         ax, ay = fx - i, fy - j
         corners = [(grid[j][i], (1 - ax) * (1 - ay)), (grid[j][i + 1], ax * (1 - ay)),
@@ -1161,12 +1219,16 @@ ground_mesh, contours = None, []
 if grid and valid:
     ground_mesh = rg.Mesh()
     index = {}
-    for j in range(gny):
-        for i in range(gnx):
+    # only the grid nodes that cover the context shown (the grid spans the whole fetched bucket)
+    i0, i1 = max(0, int(math.floor((box[0] - fbox[0]) / gdx))), min(gnx - 1, int(math.ceil((box[2] - fbox[0]) / gdx)))
+    j0, j1 = max(0, int(math.floor((box[1] - fbox[1]) / gdy))), min(gny - 1, int(math.ceil((box[3] - fbox[1]) / gdy)))
+    for j in range(j0, j1 + 1):
+        for i in range(i0, i1 + 1):
             if grid[j][i] is not None:
-                index[(i, j)] = ground_mesh.Vertices.Add((box[0] + i * gdx) * scale, (box[1] + j * gdy) * scale, (grid[j][i] - datum) * scale)
-    for j in range(gny - 1):
-        for i in range(gnx - 1):
+                index[(i, j)] = ground_mesh.Vertices.Add((fbox[0] + i * gdx) * scale, (fbox[1] + j * gdy) * scale, (grid[j][i] - datum) * scale)
+    valid = [grid[j][i] for j in range(j0, j1 + 1) for i in range(i0, i1 + 1) if grid[j][i] is not None] or valid
+    for j in range(j0, j1):
+        for i in range(i0, i1):
             q = [index.get(k) for k in ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))]
             if None not in q:
                 ground_mesh.Faces.AddFace(*q)
@@ -1203,25 +1265,162 @@ street_note = None
 st = layers.get("streets")
 if st:
     try:
-        surf = street_surfaces(st["roads"], st["reserves"], box, ground)
+        near = lambda pts: overlaps(pts, box, 25.0)  # the bucket's streets beyond the context only cost time
+        roads_near = [r for r in st["roads"] if near([to_xy(*v) for path in (r["coords"] if r["coords"] and isinstance(r["coords"][0][0], list) else [r["coords"]]) for v in path])]
+        reserves_near = [rs for rs in st["reserves"] if rs and near([to_xy(*v) for v in rs[0]])]
+        surf = street_surfaces(roads_near, reserves_near, box, ground)
         for m in surf.values():
             m.Transform(to_model)
             m.Normals.ComputeNormals()
             m.Compact()
         carriageway, footpath, nature_strip, kerb = surf["carriageway"], surf["footpath"], surf["nature_strip"], surf["kerb"]
-        measured = sum(1 for r in st["roads"] if r.get("reserve_width_m") is not None)
+        measured = sum(1 for r in roads_near if r.get("reserve_width_m") is not None)
         street_note = "Streets: %d centrelines, %d fitted to measured road reserves, the rest at class defaults; verges %s" % (
-            len(st["roads"]), measured, "paved (central / commercial zone)" if paved else "with nature strips where wide enough")
+            len(roads_near), measured, "paved (central / commercial zone)" if paved else "with nature strips where wide enough")
     except Exception as ex:
         layer_errors["streets"] = "%s: %s" % (type(ex).__name__, ex)
+
+# ── trees: shapes by species where known (City of Melbourne), else by proportion ──
+
+CONIFERS = {"pinus", "cupressus", "picea", "araucaria", "cedrus", "callitris", "sequoia", "sequoiadendron", "juniperus",
+            "abies", "taxodium", "podocarpus", "agathis", "chamaecyparis", "thuja", "metasequoia"}
+PALMS = {"phoenix", "washingtonia", "archontophoenix", "syagrus", "livistona", "trachycarpus", "howea", "butia", "cocos"}
+EUCALYPTS = {"eucalyptus", "corymbia", "angophora"}
+ICO = rg.Mesh.CreateIcoSphere(rg.Sphere(rg.Point3d.Origin, 1.0), 1)  # 80 faces: low-poly crowns read as foliage
+
+
+def tree_shape(t, h, rx, ry):
+    name = " ".join(str(t.get(k) or "") for k in ("species", "common_name")).lower()
+    genus = name.split()[0] if name.split() else ""
+    if genus in PALMS or "palm" in name:
+        return "palm"
+    if genus in CONIFERS or " pine" in " " + name or "cypress" in name or "cedar" in name:
+        return "conifer"
+    if genus in EUCALYPTS or " gum" in " " + name or (t.get("dense_canopy") and h > 18):
+        return "eucalypt"
+    if h > 2.2 * 2 * max(rx, ry):
+        return "columnar"
+    return "broad"
+
+
+def blob(rng, c, rx, ry, rz, jitter=0.16):
+    """A lumpy low-poly ball: an icosphere with every vertex pushed in or out a little."""
+    m = ICO.DuplicateMesh()
+    for i in range(m.Vertices.Count):
+        v = m.Vertices[i]
+        k = 1.0 + rng.uniform(-jitter, jitter)
+        m.Vertices.SetVertex(i, c.X + v.X * rx * k, c.Y + v.Y * ry * k, c.Z + v.Z * rz * k)
+    return m
+
+
+def limb(p0, p1, r0, r1, sides=6, cap=False):
+    """A tapered tube from p0 (radius r0) to p1 (radius r1, 0 = a cone point), as a mesh."""
+    axis = p1 - p0
+    if axis.Length < 1e-6:
+        return None
+    plane = rg.Plane(p0, axis)
+    m = rg.Mesh()
+    for k in range(sides):
+        a = 2 * math.pi * k / sides
+        m.Vertices.Add(p0 + plane.XAxis * (r0 * math.cos(a)) + plane.YAxis * (r0 * math.sin(a)))
+    if r1 <= 0:  # a cone: one apex vertex (a ring of coincident ones would make zero-area, invalid faces)
+        apex = m.Vertices.Add(p1)
+        for k in range(sides):
+            m.Faces.AddFace(k, (k + 1) % sides, apex)
+    else:
+        for k in range(sides):
+            a = 2 * math.pi * k / sides
+            m.Vertices.Add(p1 + plane.XAxis * (r1 * math.cos(a)) + plane.YAxis * (r1 * math.sin(a)))
+        for k in range(sides):
+            n = (k + 1) % sides
+            m.Faces.AddFace(k, n, sides + n, sides + k)
+    if cap:  # close the base (cones)
+        centre = m.Vertices.Add(p0)
+        for k in range(sides):
+            m.Faces.AddFace(centre, (k + 1) % sides, k)
+    return m
+
+
+def tree_meshes(shape, rng, x, y, z0, h, rx, ry):
+    """-> (crown mesh, wood mesh) for one tree standing at (x, y, z0), in metres."""
+    crown, wood = rg.Mesh(), rg.Mesh()
+    base = rg.Point3d(x, y, z0)
+    r = min(max(0.012 * h + 0.06, 0.08), 0.6)  # trunk radius at the ground
+    if shape == "palm":
+        top = rg.Point3d(x + rng.uniform(-0.04, 0.04) * h, y + rng.uniform(-0.04, 0.04) * h, z0 + h)
+        wood.Append(limb(base, top, r * 0.9, r * 0.7, 7))
+        reach = max(1.2, 0.95 * max(rx, ry))
+        for k in range(10):  # drooping fronds: thin blades out and down from the crown
+            a = 2 * math.pi * (k + rng.uniform(-0.2, 0.2)) / 10
+            d = rg.Vector3d(math.cos(a), math.sin(a), 0)
+            side = rg.Vector3d(-d.Y, d.X, 0)
+            pts = [top + d * (reach * f) + rg.Vector3d(0, 0, reach * (0.25 * f - 0.65 * f * f)) for f in (0.0, 0.35, 0.7, 1.0)]
+            widths = (0.05, 0.32, 0.26)
+            i0 = crown.Vertices.Count
+            for p, w in zip(pts, widths):
+                crown.Vertices.Add(p - side * w)
+                crown.Vertices.Add(p + side * w)
+            tip = crown.Vertices.Add(pts[3])  # one tip vertex: a zero-width quad would be an invalid face
+            for j in range(2):
+                crown.Faces.AddFace(i0 + 2 * j, i0 + 2 * j + 1, i0 + 2 * j + 3, i0 + 2 * j + 2)
+            crown.Faces.AddFace(i0 + 4, i0 + 5, tip)
+        crown.Append(blob(rng, top, 0.35, 0.35, 0.3, 0.1))
+        return crown, wood
+    if shape == "conifer":
+        start = z0 + max(1.2, 0.18 * h)
+        wood.Append(limb(base, rg.Point3d(x, y, z0 + h * 0.97), r, r * 0.25, 6))
+        tiers = 4
+        for k in range(tiers):  # stacked cones, narrower towards the top
+            f0 = k / float(tiers)
+            zb = start + (h - start) * f0 * 0.82
+            zt = min(z0 + h, zb + (h - start) * 0.42)
+            w = (1.0 - 0.72 * f0)
+            c = limb(rg.Point3d(x, y, zb), rg.Point3d(x, y, zt), max(rx, ry) * w * rng.uniform(0.9, 1.08), 0.0, 9, cap=True)
+            if c:
+                crown.Append(c)
+        return crown, wood
+    depth = max(1.2, min((0.5 if shape == "eucalypt" else 0.62 if shape == "broad" else 0.78) * h, h - 1.6))
+    centre = rg.Point3d(x, y, z0 + h - depth / 2)
+    split = rg.Point3d(x + rng.uniform(-0.1, 0.1) * rx, y + rng.uniform(-0.1, 0.1) * ry, z0 + h - depth * (0.75 if shape == "eucalypt" else 0.85))
+    wood.Append(limb(base, split, r, r * 0.65, 6))
+    blobs = []
+    if shape == "columnar":
+        n = 4
+        for k in range(n):  # stacked, narrowing upwards
+            f = k / float(n - 1)
+            c = rg.Point3d(x + rng.uniform(-0.1, 0.1) * rx, y + rng.uniform(-0.1, 0.1) * ry, centre.Z - depth * 0.32 + f * depth * 0.62)
+            s = 1.0 - 0.45 * f
+            blobs.append((c, rx * s, ry * s, depth * 0.3))
+    else:
+        open_crown = shape == "eucalypt"
+        n = max(3, min(7, int(2 + (rx + ry) / (2.4 if open_crown else 1.6))))
+        blobs.append((rg.Point3d(centre.X, centre.Y, centre.Z + depth * 0.12), rx * 0.62, ry * 0.62, depth * 0.36))
+        for k in range(n - 1):  # a ring of clumps round the middle, at varied heights
+            a = 2 * math.pi * (k + rng.uniform(-0.25, 0.25)) / (n - 1)
+            spread = rng.uniform(0.38, 0.55) if not open_crown else rng.uniform(0.5, 0.68)
+            c = rg.Point3d(centre.X + math.cos(a) * rx * spread, centre.Y + math.sin(a) * ry * spread,
+                           centre.Z + rng.uniform(-0.28, 0.2) * depth)
+            s = rng.uniform(0.42, 0.58) if not open_crown else rng.uniform(0.32, 0.45)
+            blobs.append((c, rx * s, ry * s, depth * s * 0.85))
+    for c, bx, by, bz in blobs:
+        crown.Append(blob(rng, c, bx, by, bz))
+    # limbs from the trunk's split into the larger clumps, so the crown reads as held up by branches
+    for c, bx, by, bz in sorted(blobs, key=lambda b: -b[1])[:3 if shape != "eucalypt" else 5]:
+        tip = rg.Point3d(split.X + (c.X - split.X) * 0.8, split.Y + (c.Y - split.Y) * 0.8, split.Z + (c.Z - split.Z) * 0.8)
+        l = limb(split, tip, r * 0.45, r * 0.15, 5)
+        if l:
+            wood.Append(l)
+    return crown, wood
+
 
 canopy = trunk = None
 tree_note = None
 tr = layers.get("trees")
 if tr is not None:
+    import random
     canopy, trunk = rg.Mesh(), rg.Mesh()
-    unit = rg.Mesh.CreateFromSphere(rg.Sphere(rg.Point3d.Origin, 1.0), 16, 10)
     shown = roof = species = 0
+    shapes = {}
     for t in tr:
         x, y = to_xy(t["lon"], t["lat"])
         if not (box[0] < x < box[2] and box[1] < y < box[3]):
@@ -1233,21 +1432,22 @@ if tr is not None:
             continue
         rx = max(t.get("canopy_rx_m") or t.get("canopy_radius_m") or 2.0, 0.6)
         ry = max(t.get("canopy_ry_m") or t.get("canopy_radius_m") or 2.0, 0.6)
-        depth = max(1.0, min(0.6 * h, h - 1.8))
-        z0 = ground(x, y)
-        crown = unit.DuplicateMesh()
-        crown.Transform(rg.Transform.Translation(x, y, z0 + h - depth / 2) * rg.Transform.Scale(rg.Plane.WorldXY, rx, ry, depth / 2))
-        canopy.Append(crown)
-        r = min(max(0.012 * h + 0.05, 0.08), 0.5)
-        stem = rg.Mesh.CreateFromCylinder(rg.Cylinder(rg.Circle(rg.Plane(rg.Point3d(x, y, z0), rg.Vector3d.ZAxis), r), h - depth / 2), 1, 8)
-        trunk.Append(stem)
+        shape = tree_shape(t, h, rx, ry)
+        shapes[shape] = shapes.get(shape, 0) + 1
+        rng = random.Random(t.get("ufi") or "%.1f,%.1f" % (x, y))  # the same tree looks the same every run
+        c, w = tree_meshes(shape, rng, x, y, ground(x, y), h, rx, ry)
+        canopy.Append(c)
+        trunk.Append(w)
         shown += 1
         species += 1 if t.get("species") else 0
     for m in (canopy, trunk):
         m.Transform(to_model)
+        m.Faces.CullDegenerateFaces()  # belt and braces: an invalid mesh stops Grasshopper's bake with a dialog
         m.Normals.ComputeNormals()
-    tree_note = ("Trees: %d from Vicmap Tree Urban (crowns from 2019 imagery, heights from 2017-18 LiDAR)%s%s" % (
-        shown, ("; %d on roofs left out" % roof) if roof else "", ("; species known for %d (City of Melbourne)" % species) if species else "")
+        m.Compact()
+    tree_note = ("Trees: %d from Vicmap Tree Urban (crowns from 2019 imagery, heights from 2017-18 LiDAR): %s%s%s" % (
+        shown, ", ".join("%d %s" % (v, k) for k, v in sorted(shapes.items(), key=lambda kv: -kv[1])),
+        ("; %d on roofs left out" % roof) if roof else "", ("; species known for %d (City of Melbourne)" % species) if species else "")
         if tr else "Trees: none here (Vicmap Tree Urban covers metro Melbourne, Ballarat, Shepparton, Wangaratta and Sale)")
 ground = ground_mesh
 
@@ -1290,6 +1490,8 @@ lines += [
     % ("; DEM of Australia from LiDAR 5 m (Geoscience Australia, CC BY 4.0)" if grid else "", data["retrieved"], ", from cache" if from_cache else ""),
     "Not a Planning Property Report: confirm with VicPlan before relying on it.",
 ]
+if FALLBACKS:
+    lines.insert(-2, "Note: Vicmap's ArcGIS property/parcel queries failed; read from the open-data WFS instead (%s)." % ", ".join(sorted(FALLBACKS)))
 for k, err in list(data["errors"].items()) + list(layer_errors.items()):
     lines.append("WARNING %s failed: %s" % (k, err))
     print("%s failed: %s" % (k, err))
