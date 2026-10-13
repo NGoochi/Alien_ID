@@ -10,7 +10,9 @@
     <RootNamespace>Alien</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>2.0.0</Version>
+    <!-- Release version: AlienInfo.Version and McpServer.Version say the same ("0.01-alpha"); assembly numbers must be numeric -->
+    <Version>0.0.1</Version>
+    <InformationalVersion>0.01-alpha</InformationalVersion>
     <Title>Alien</Title>
     <Description>Grasshopper live-code node (Python 3 / C#) driven by AI agents over MCP</Description>
     <!-- NU1701: net48 reference assembly package; NETSDK1138: net7 EOL; CS1701/1702: Rhino assembly version unification -->

@@ -5,7 +5,8 @@ a two-line header. You describe what you want in plain English and a model write
 own errors. Nodes live as plain files, so they can be shared, and AI agents can drive everything through a built-in
 MCP server.
 
-*Status: working prototype for a uni mini-MBA pitch (mock business: no real sales). Phase 1 of [BRIEF.md](BRIEF.md) is
+*Status: alpha 0.01 ([releases](https://github.com/NGoochi/Alien_ID/releases)), a working prototype for a uni mini-MBA
+pitch (mock business: no real sales). Phase 1 of [BRIEF.md](BRIEF.md) is
 done; the online library, accounts and payments (Phases 2–3) are not built yet.*
 
 ```python
@@ -66,6 +67,13 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   scripts, inspect data, capture the viewport and drive Rhino, while you watch.
 
 ## Install
+
+**From a release (recommended):** download `Alien-0.01-alpha.zip` from the
+[releases page](https://github.com/NGoochi/Alien_ID/releases), unzip it, and run `install-mac.command` (macOS) or
+`install-windows.bat` (Windows) with Rhino closed. [installer/INSTALL.md](installer/INSTALL.md) has the full steps,
+first run, costs and troubleshooting. One `Alien.gha` serves both platforms; Windows is untested in this alpha.
+
+**From source:**
 
 Requirements:
 - Rhino 8 (Windows or macOS)
@@ -139,7 +147,8 @@ The server tells the agent how to work (its `initialize` instructions and the `d
 | `docs/DEV_NOTES.md` | Hard-won facts: build, threading, pin rebuilds, RhinoCode, UI, describe-a-node |
 | `docs/docs.json` | The full reference as JSON: every node and its pins, the panel, library, assets, settings, MCP tools (`python3 tools/docs_json.py` rewrites it) |
 | `tests/describe/` | The describe-a-node test (10 prompts, several models) and its results |
-| `tools/` | Shell tools to drive and check a running Rhino (MCP calls, captures, simulated clicks) |
+| `tools/` | Shell tools to drive and check a running Rhino (MCP calls, captures, simulated clicks), and `package.sh` |
+| `installer/` | What goes in the release zip: INSTALL.md, README.txt, the macOS and Windows installers, a settings example |
 | `BRIEF.md` | The product brief: tiers, stack, phases |
 | `AGENTS.md` | Project context for coding agents (also loaded by Claude Code via `CLAUDE.md`) |
 

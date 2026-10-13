@@ -9,6 +9,7 @@ For agents and people checking Alien changes in a real Rhino. They talk to Alien
 | `capture.py out.png '<json>'` | Saves a capture of the viewport or the Grasshopper canvas (`{"target":"canvas"}`) |
 | `click.py <node> <dx> <dy> [double]` | Simulates a click on a node, delivered to its own mouse handlers (sliders, toggles, PANEL, text fields) |
 | `panel.py '<json>'` | Sends a message to the Alien panel as if its page did (`place`, `describe`, `restore`, `dock`, `close`, `bakeAsset`, `materialAsset`, `placeAsset`, `revealAsset` with `kind` and `id`) |
+| `package.sh` | Builds the release zip: `dist/Alien-<version>.zip` with Alien.gha and the `installer/` files (see AGENTS.md, Releases) |
 | `docs_json.py [--check]` | Rewrites `docs/docs.json` (suite pins from headers, categories from `Library.cs`, MCP tools from the running server); `--check` fails on undocumented nodes or settings |
 | `panel.py --js '<script>'` | Runs JavaScript in the panel page, for page-only state: `document.getElementById('tabAssets').click()` |
 | `windows.swift` | macOS: lists Rhino's windows, for `screencapture -x -o -l <id>` of the Grasshopper window or the sidecar |
