@@ -63,6 +63,8 @@ Roadmap only (slides, not built): Dynamo version, studio tier (private library f
 
 ## Phase 2 — Web scaffold (needs accounts: Cloudflare, OpenRouter, domain)
 
+*Detailed plan: [ROADMAP.md](ROADMAP.md).*
+
 - **Worker API:** `POST /v1/generate` (proxies OpenRouter, deducts credits from the reported cost) · `GET/POST /v1/nodes` (list / publish) · `GET /v1/nodes/:id` (download a script).
 - **Registry:** a script file plus a metadata JSON in R2; a D1 table for search (name, description, tags, author, version, language, downloads).
 - **Plugin side:** a "hosted" provider option (calls the Worker instead of OpenRouter); right-click **Publish** and **Install from library** (downloads into the script repository).
