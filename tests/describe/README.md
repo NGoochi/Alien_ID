@@ -34,5 +34,12 @@ anthropic/claude-haiku-5.5: 10/10 working, 10/10 first try, US$0.0011 per node, 
 CATEGORY line (4 Geometry, 3 Massing & objects, 1 Data & lists, 1 Utilities, 1 Analysis). Two picks were loose
 ("attractor-point scaling of circles" as Massing & objects), so the prompt now lists each category's hint.
 
+## 2026-10-13: rerun after adding the document's units to the request
+
+The request now says which units the Rhino document uses (a millimetre document had produced a 5 mm "5 m" polygon).
+Also new since the last run: the unset-output check works again (RhinoCode now pre-sets outputs to None).
+anthropic/claude-haiku-5.5: 10/10 working, 8/10 first try (a `None` passed to `int()`, a slice on a .NET array; both
+fixed on attempt 2), US$0.0018 per node, 14 s average (the voronoi first attempt took 41 s).
+
 `results-2026-10-09/scripts/` holds the generated scripts. Files without a suffix are DeepSeek's, `_02` is GPT-6
 Luna's and `_03` is Haiku's; the rest are from later spot checks.

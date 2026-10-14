@@ -46,7 +46,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
         public static IEnumerable<Tool> All() => new[]
         {
             new Tool("canvas",
-                "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins) and wires 'src.out>dst.in'.",
+                "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user) and wires 'src.out>dst.in'.",
                 Schema(("filter", Str("'alien', 'errors', or a name substring. Default: everything."), false),
                        ("detail", Bool("Include pins of native components too."), false),
                        ("solve", Bool("Recompute the whole definition first and report errors/warnings."), false)),
@@ -101,6 +101,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                        ("language", Str("'python' (default) or 'csharp', for a new node"), false),
                        ("model", Str("Override settings 'model', e.g. 'deepseek/deepseek-v4.1-flash' or 'ollama:qwen3:8b'"), false),
                        ("attempts", Num("Max attempts (default 4)"), false),
+                       ("context", Arr(Str("node id"), "Nodes the new node works with: the model sees what they output and wires them in"), false),
                        ("x", Num("Canvas x"), false), ("y", Num("Canvas y"), false),
                        ("near", Str("Place to the right of this node id"), false)),
                 Generate),
@@ -257,6 +258,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                         n["msg"] = $"{(lvl == GH_RuntimeMessageLevel.Error ? "error" : lvl.ToString().ToLowerInvariant())}: {Trim(msg, 160)}";
                     }
                     n["at"] = new JArray((int)o.Attributes.Pivot.X, (int)o.Attributes.Pivot.Y);
+                    if (o.Attributes.Selected) n["sel"] = true;
                     nodes.Add(n);
                 }
 

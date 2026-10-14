@@ -42,8 +42,10 @@ namespace Alien
         {
             new Category("site", "Site & context", "maps, parcels, terrain, roads, planning data around a site",
                 "site map address parcel lot cadastre cadastral zone zoning overlay terrain topography topo contour gis street road osm vicmap survey context planning setback"),
-            new Category("massing", "Massing & objects", "building masses, floors and levels, furniture and 3D objects",
-                "massing mass building floor floors level levels storey storeys tower envelope furniture chair object volume extrude extrusion slab facade roof"),
+            new Category("building", "Building elements", "BIM-style elements: site base, levels, grids, walls, doors, windows, curtain walls, beams, columns, connections",
+                "bim level levels storey storeys grid grids gridline wall walls door doors window windows opening openings curtain mullion transom beam beams column columns connector connection plate bolt structure structural"),
+            new Category("massing", "Massing & objects", "building masses, floors, furniture and 3D objects",
+                "massing mass building floor floors tower envelope furniture chair object volume extrude extrusion slab facade roof"),
             new Category("entourage", "Entourage", "people, trees, plants, cars: scale and life in drawings",
                 "figure figures person people human tree trees plant plants vegetation car cars entourage silhouette scale"),
             new Category("materials", "Materials", "material finishes, textures, colours",

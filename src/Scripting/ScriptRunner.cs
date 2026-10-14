@@ -95,7 +95,15 @@ namespace Alien.Scripting
                         result.Controls = json;
                     if (python && ctx.Outputs.TryGet(UnsetVar, out object unset) && unset is IEnumerable names)
                         result.Unset.AddRange(names.Cast<object>().Select(n => n?.ToString()));
-                    else if (!python)
+                    if (python)
+                    {
+                        // RhinoCode now sets every output to None before the script runs, so "never assigned" can't be
+                        // seen from the scope. An output still None whose name the code never mentions was forgotten.
+                        var bare = Regex.Replace(source, @"#[^\n]*", "");
+                        result.Unset.AddRange(outputs.Where(o => result.Outputs[o] == null && !result.Unset.Contains(o)
+                                                                 && !Regex.IsMatch(bare, @"\b" + Regex.Escape(o) + @"\b")));
+                    }
+                    else
                         result.Unset.AddRange(outputs.Where(o => result.Outputs[o] == null));
                     result.Success = true;
                 }
@@ -225,23 +233,27 @@ namespace Alien.Scripting
         {
             var names = "(" + string.Join(", ", outputs.Select(o => $"'{o}'")) + (outputs.Count == 1 ? ",)" : ")");
             var sb = new StringBuilder();
+            // Builtins through the builtins module: a script's own `type`, `list` or `set` (an input named type, say)
+            // must not change what this code calls.
             sb.Append("\n\n# ---- appended by Alien at run time (not in your file) ----\n");
+            sb.Append("import builtins as __alien_b__\n");
             sb.Append("def __alien_fix__(v, d=0):\n");
-            sb.Append("    t = type(v)\n");
+            sb.Append("    t = __alien_b__.type(v)\n");
             sb.Append("    if d < 8:\n");
-            sb.Append("        if t in (tuple, set, frozenset) or t.__name__ in ('range', 'generator', 'map', 'filter', 'zip', 'dict_values', 'dict_keys'):\n");
-            sb.Append("            v = list(v)\n");
-            sb.Append("        elif hasattr(v, 'tolist') and hasattr(v, 'ndim'):\n");
+            sb.Append("        if t in (__alien_b__.tuple, __alien_b__.set, __alien_b__.frozenset) or t.__name__ in ('range', 'generator', 'map', 'filter', 'zip', 'dict_values', 'dict_keys'):\n");
+            sb.Append("            v = __alien_b__.list(v)\n");
+            sb.Append("        elif __alien_b__.hasattr(v, 'tolist') and __alien_b__.hasattr(v, 'ndim'):\n");
             sb.Append("            v = v.tolist()\n");
-            sb.Append("        if type(v) is list:\n");
+            sb.Append("        if __alien_b__.type(v) is __alien_b__.list:\n");
             sb.Append("            return [__alien_fix__(x, d + 1) for x in v]\n");
             sb.Append("    return v\n");
-            sb.Append($"{UnsetVar} = [__n for __n in {names} if __n not in globals()]\n");
+            sb.Append($"{UnsetVar} = [__n for __n in {names} if __n not in __alien_b__.globals()]\n");
             sb.Append($"for __n in {names}:\n");
-            sb.Append("    if __n in globals():\n");
-            sb.Append("        globals()[__n] = __alien_fix__(globals()[__n])\n");
+            sb.Append("    if __n in __alien_b__.globals():\n");
+            sb.Append("        __alien_b__.globals()[__n] = __alien_fix__(__alien_b__.globals()[__n])\n");
             var controls = $"\n{ControlsVar} = None\n" +
-                           "if isinstance(globals().get('NODE_CONTROLS'), dict):\n" +
+                           "import builtins as __alien_b__\n" +
+                           "if __alien_b__.isinstance(__alien_b__.globals().get('NODE_CONTROLS'), __alien_b__.dict):\n" +
                            "    try:\n" +
                            "        import json as __alien_json__\n" +
                            $"        {ControlsVar} = __alien_json__.dumps(NODE_CONTROLS, default=str)\n" +

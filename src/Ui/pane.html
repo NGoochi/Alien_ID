@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <style>
-:root{--bg:#1c1c1c;--card:#252525;--field:#2e2e2e;--edge:#3a3a3a;--text:#dcdcdc;--dim:#8c8c8c;--accent:#00c853;--amber:#e0a020;--red:#e14646;--blue:#5aa0ff}
+:root{--bg:#1e1e1e;--card:#252525;--field:#2e2e2e;--edge:#3a3a3a;--hover:#555;--text:#d7d7d7;--dim:#8c8c8c;--accent:#00c853;--on-accent:#141414;--code:#161616;--tile:#2c2c2c;--toast:#1e3a2a;--amber:#e0a020;--red:#e14646;--blue:#5aa0ff;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:12.5px/1.45 -apple-system,"Segoe UI",Helvetica,sans-serif;-webkit-user-select:none;user-select:none}
 header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--edge)}
 header b{font-size:13px;flex:1}
+.mark{height:17px;width:auto;flex:none;fill:var(--accent)}
 section{padding:10px 12px;border-bottom:1px solid var(--edge)}
 h3{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--dim);text-transform:uppercase}
 select,input,textarea,button{font:inherit;color:var(--text);background:var(--field);border:1px solid var(--edge);border-radius:6px}
@@ -16,7 +17,7 @@ button.icon{padding:3px 7px}
 input{width:100%;padding:5px 8px}
 textarea{width:100%;padding:7px 8px;resize:vertical;min-height:54px;-webkit-user-select:text;user-select:text}
 button{padding:4px 10px;cursor:pointer}
-button:hover{border-color:#555}
+button:hover{border-color:var(--hover)}
 button.go{border-color:var(--accent);color:var(--accent)}
 button.stop{border-color:var(--amber);color:var(--amber)}
 .row{display:flex;gap:6px;align-items:center;margin-top:6px}
@@ -26,14 +27,14 @@ button.stop{border-color:var(--amber);color:var(--amber)}
 .dim{color:var(--dim)}
 .ok{color:var(--accent)}.warn{color:var(--amber)}.err{color:var(--red)}
 .status{margin:3px 0 6px}
-.error{background:rgba(225,70,70,.12);border:1px solid rgba(225,70,70,.4);color:#f09090;border-radius:6px;padding:6px 8px;margin:6px 0;white-space:pre-wrap;-webkit-user-select:text;user-select:text}
+.error{background:color-mix(in srgb,var(--red) 12%,transparent);border:1px solid color-mix(in srgb,var(--red) 40%,transparent);color:var(--red);border-radius:6px;padding:6px 8px;margin:6px 0;white-space:pre-wrap;-webkit-user-select:text;user-select:text}
 .entry{border-top:1px solid var(--edge);padding:6px 0}
 .entry:first-child{border-top:0}
 .req{white-space:pre-wrap}
 .notes{color:var(--dim);font-size:11px;margin:2px 0 0 10px}
 .inputs div{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
 .inputs span:last-child{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
-pre{background:#161616;border:1px solid var(--edge);border-radius:6px;padding:8px;max-height:260px;overflow:auto;font:11px/1.4 Menlo,Consolas,monospace;-webkit-user-select:text;user-select:text;white-space:pre}
+pre{background:var(--code);border:1px solid var(--edge);border-radius:6px;padding:8px;max-height:260px;overflow:auto;font:11px/1.4 Menlo,Consolas,monospace;-webkit-user-select:text;user-select:text;white-space:pre}
 details summary{cursor:pointer;color:var(--dim);margin-top:8px}
 .lib{cursor:pointer;padding:5px 6px;border-radius:6px}
 .lib:hover{background:var(--card)}
@@ -50,27 +51,61 @@ details summary{cursor:pointer;color:var(--dim);margin-top:8px}
 .chip i{font-style:normal;opacity:.6;margin-left:3px}
 .tag{font-size:9.5px;border:1px solid var(--edge);border-radius:4px;padding:0 4px;color:var(--dim);margin-left:4px;vertical-align:1px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:8px}
-.tile{cursor:pointer;border:1px solid var(--edge);border-radius:7px;overflow:hidden;background:#2c2c2e}
-.tile:hover{border-color:#555}.tile.on{border-color:var(--accent)}
+.tile{cursor:pointer;border:1px solid var(--edge);border-radius:7px;overflow:hidden;background:var(--tile)}
+.tile:hover{border-color:var(--hover)}.tile.on{border-color:var(--accent)}
 .tile img,.tile .ph{display:block;width:100%;aspect-ratio:1;object-fit:cover}
 .tile .ph{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px}
 .tile div{font-size:10.5px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card{border:1px solid var(--edge);border-radius:8px;background:var(--card);padding:8px;margin-top:8px}
-.card img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;display:block;background:#2c2c2e}
+.card img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;display:block;background:var(--tile)}
 .card .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
 .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-#toast{position:fixed;left:10px;right:10px;bottom:10px;background:#2b3a2f;border:1px solid var(--accent);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast{position:fixed;left:10px;right:10px;bottom:10px;background:var(--toast);border:1px solid var(--accent);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;opacity:0;transition:opacity .25s;pointer-events:none}
 #toast.show{opacity:1}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+.preset{border:1px solid var(--edge);border-radius:7px;padding:0;overflow:hidden;text-align:left;background:none}
+.preset:hover{border-color:var(--hover)}
+.preset.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.preset .sw{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;font-weight:600}
+.preset .sw i{flex:none;width:12px;height:12px;border-radius:50%}
+.preset .nm{font-size:10.5px;padding:3px 7px;color:var(--dim);border-top:1px solid var(--edge);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.colours label{display:flex;align-items:center;gap:8px;margin:6px 0}
+.colours label span{flex:1}
+input[type=color]{width:36px;height:24px;padding:1px 2px;cursor:pointer}
+input.hex{width:86px;padding:3px 6px;font:11px/1.4 Menlo,Consolas,monospace;-webkit-user-select:text;user-select:text}
+.check{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--dim);cursor:pointer}
+.check input{width:auto;margin:0}
+.picked{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
+.picked span{border:1px solid var(--edge);border-radius:99px;padding:1px 8px;font-size:11px}
+.picked span b{font-weight:600;color:var(--accent);margin-right:4px;font-size:9.5px}
 </style>
 </head>
 <body>
 <header>
+  <svg class="mark" viewBox="105 64 1266 1368" aria-hidden="true"><path d="M1167.6 1430.5C1129.0 1424.2 1089.8 1402.6 1063.7 1373.2C1049.5 1357.2 1034.2 1330.7 1027.6 1310.5C1018.5 1282.6 1017.0 1252.9 1023.1 1221.2C1033.4 1167.7 1067.8 1123.2 1117.2 1099.2C1133.5 1091.3 1149.0 1086.4 1169.0 1082.8C1180.5 1080.8 1215.0 1081.1 1227.5 1083.4C1282.4 1093.4 1326.5 1127.2 1352.5 1179.0C1370.0 1213.9 1375.4 1255.3 1367.4 1293.8C1363.4 1313.3 1351.6 1339.7 1339.3 1356.9C1313.0 1393.5 1273.2 1419.4 1228.5 1429.0C1215.3 1431.9 1181.2 1432.7 1167.6 1430.5ZM809.5 1112.4C801.2 1111.0 789.1 1107.7 782.8 1104.9C773.1 1100.6 767.8 1097.3 751.3 1084.9C727.5 1066.9 704.9 1054.2 679.3 1044.2C591.2 1009.8 495.5 1017.9 413.5 1066.6C380.8 1086.0 354.7 1095.3 322.5 1099.1C306.9 1100.9 278.3 1099.7 263.5 1096.6C224.3 1088.3 190.3 1069.5 162.0 1040.3C139.3 1017.0 124.6 993.1 114.4 962.8C107.1 941.1 104.5 922.2 105.3 896.1C106.2 868.0 111.6 845.5 123.4 820.5C143.7 777.8 175.3 745.9 217.5 725.5C235.0 717.0 245.9 713.5 268.5 708.9C301.1 702.4 324.3 694.6 350.0 681.7C378.7 667.3 402.2 650.6 424.8 628.5C453.3 600.9 471.9 575.3 488.1 541.5C507.8 500.4 517.2 459.5 517.2 414.5C517.2 385.5 515.0 369.2 506.9 337.2C500.6 312.1 498.8 298.8 498.8 277.5C498.8 209.0 530.4 145.2 584.5 104.8C606.9 88.0 637.9 74.3 666.5 68.5C735.7 54.5 808.3 76.5 859.1 127.0C917.6 185.0 936.2 273.1 906.5 350.5C888.0 398.5 856.6 434.7 810.5 461.0C739.8 501.2 692.4 573.1 682.4 655.0C680.2 673.2 680.9 704.4 683.9 721.5C693.5 775.5 715.4 819.4 751.8 857.2C780.0 886.4 811.7 907.2 849.0 920.9C868.8 928.3 877.0 933.1 888.9 944.4C898.2 953.4 903.8 961.3 909.5 973.2C916.5 988.0 918.4 997.4 918.4 1016.5C918.4 1030.0 918.1 1033.8 916.1 1041.0C907.0 1074.8 880.1 1101.3 846.0 1110.0C837.7 1112.2 816.8 1113.5 809.5 1112.4Z"/></svg>
   <b>Alien</b>
   <select id="model" title="Model for describe-a-node"></select>
-  <button id="settings" class="icon" title="Settings file (API key, models)">⚙</button>
+  <button id="settings" class="icon" title="Settings: theme, colours, settings file">⚙</button>
   <button id="dock" class="icon" title="Dock in Rhino">⇲</button>
   <button id="close" class="icon" title="Close the panel">✕</button>
 </header>
+
+<section id="settingsView" style="display:none">
+  <div class="row" style="margin:0 0 8px"><span class="title grow">Settings</span><button id="settingsDone" class="go">Done</button></div>
+  <h3>Theme</h3>
+  <div id="presets" class="presets"></div>
+  <h3 style="margin-top:12px">Colours</h3>
+  <div class="colours">
+    <label><span>Background</span><input type="color" id="c-background"><input class="hex" id="h-background" maxlength="7" spellcheck="false"></label>
+    <label><span>Text</span><input type="color" id="c-text"><input class="hex" id="h-text" maxlength="7" spellcheck="false"></label>
+    <label><span>Accent</span><input type="color" id="c-accent"><input class="hex" id="h-accent" maxlength="7" spellcheck="false"></label>
+  </div>
+  <div class="dim">Nodes, the canvas text box and this panel use these. Changing a colour makes a custom theme.</div>
+  <div class="row"><button id="resetTheme">Reset to Alien</button></div>
+  <h3 style="margin-top:14px">Keys and models</h3>
+  <div class="dim">The OpenRouter key, models, script folder and agent port live in settings.json.</div>
+  <div class="row"><button id="openSettingsFile">Open settings file</button></div>
+</section>
 
 <section id="nodeSection">
   <div id="nodeHead"></div>
@@ -81,10 +116,11 @@ details summary{cursor:pointer;color:var(--dim);margin-top:8px}
     <button id="stop" class="stop" style="display:none">Stop</button>
     <button id="send" class="go">Describe</button>
   </div>
+  <label class="check" id="fromSelRow" style="display:none" title="Leave this node as it is and build a new one that takes its outputs"><input type="checkbox" id="fromSel"> Build a new node from this one</label>
   <div id="nodeBody"></div>
 </section>
 
-<section>
+<section id="librarySection">
   <div class="tabs"><button id="tabNodes" class="on">Nodes</button><button id="tabAssets">Generated</button></div>
   <div id="nodesView">
     <input id="search" placeholder="Search nodes">
@@ -105,7 +141,9 @@ details summary{cursor:pointer;color:var(--dim);margin-top:8px}
 const $ = id => document.getElementById(id);
 const post = (type, data) => window.eto.postMessage(JSON.stringify(Object.assign({ type }, data || {})));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let state = { node: null, library: [], categories: [], settings: {} };
+let state = { node: null, library: [], categories: [], settings: {}, selection: [], theme: null, presets: [] };
+let view = 'main';
+const COLOURS = ['background', 'text', 'accent'];
 let shownNode = null;
 let assets = [], tab = 'nodes', category = 'all', assetKind = 'all', picked = null;
 const KINDS = [['object', 'Objects'], ['texture', 'Materials'], ['graphic', 'Drawings']];
@@ -116,7 +154,9 @@ window.alien = {
   state(s) {
     const prevId = state.node && state.node.id;
     state = s;
+    applyTheme(s.theme);
     renderSettings();
+    renderSettingsView();
     renderNode(prevId !== (s.node && s.node.id));
     renderLibrary();
   },
@@ -155,14 +195,73 @@ function renderSettings() {
   }
 }
 
+function applyTheme(t) {
+  if (!t || !t.css) return;
+  const root = document.documentElement.style;
+  for (const k in t.css) root.setProperty(k, t.css[k]);
+  root.colorScheme = t.light ? 'light' : 'dark';
+}
+
+function showView(v) {
+  view = v;
+  $('settingsView').style.display = v === 'settings' ? '' : 'none';
+  $('nodeSection').style.display = v === 'settings' ? 'none' : '';
+  $('librarySection').style.display = v === 'settings' ? 'none' : '';
+  renderSettingsView();
+}
+
+function renderSettingsView() {
+  if (view !== 'settings') return;
+  const t = state.theme || {}, ps = state.presets || [];
+  setHtml($('presets'), ps.map(p => `<button class="preset ${p.name === t.preset ? 'on' : ''}" data-preset="${esc(p.name)}" title="${esc(p.name)}">
+      <div class="sw" style="background:${esc(p.background)};color:${esc(p.text)}"><i style="background:${esc(p.accent)}"></i>Aa</div><div class="nm">${esc(p.name)}</div></button>`).join('')
+    + (t.preset === 'Custom' ? `<button class="preset on" disabled title="Your colours"><div class="sw" style="background:${esc(t.background)};color:${esc(t.text)}"><i style="background:${esc(t.accent)}"></i>Aa</div><div class="nm">Custom</div></button>` : ''));
+  for (const k of COLOURS) {
+    const v = (t[k] || '#000000').toLowerCase();
+    if (document.activeElement !== $('h-' + k)) $('h-' + k).value = v;
+    if (document.activeElement !== $('c-' + k)) $('c-' + k).value = v;
+  }
+}
+
+function sendTheme(preset) {
+  const t = state.theme || {};
+  if (preset) { post('theme', { preset }); return; }
+  const c = {};
+  for (const k of COLOURS) c[k] = $('c-' + k).value;
+  post('theme', Object.assign({ preset: t.preset }, c));
+}
+
+const isHex = v => /^#?[0-9a-f]{6}$/i.test(v.trim()) || /^#?[0-9a-f]{3}$/i.test(v.trim());
+
 function statusClass(n) { return n.describing ? 'warn' : n.level === 'error' ? 'err' : n.level === 'warning' ? 'warn' : n.level === 'ok' ? 'ok' : 'dim'; }
 
+// Several nodes selected (or one that isn't an Alien node): describing builds a new node that works with them.
+function selectionMode() {
+  const sel = state.selection || [];
+  return sel.length > 1 || (sel.length === 1 && sel[0].kind !== 'alien');
+}
+
 function renderNode(switched) {
-  const n = state.node;
-  $('lang').style.display = n && n.script ? 'none' : '';
-  $('prompt').placeholder = n && n.script ? `Describe a change to ${n.name}…` : n ? 'Describe this node…' : 'Describe a new node…';
+  if (switched) $('fromSel').checked = false;
+  const sel = state.selection || [];
+  const multi = selectionMode();
+  const n = multi ? null : state.node;
+  const fromThis = !multi && n && n.script && $('fromSel').checked;
+  $('fromSelRow').style.display = !multi && n && n.script && !n.describing ? '' : 'none';
+  $('lang').style.display = n && n.script && !fromThis ? 'none' : '';
+  $('prompt').placeholder = multi ? 'Describe a new node that works with the selection…'
+    : fromThis ? `Describe a new node that takes ${n.name}'s outputs…`
+    : n && n.script ? `Describe a change to ${n.name}…` : n ? 'Describe this node…' : 'Describe a new node…';
   $('send').style.display = n && n.describing ? 'none' : '';
   $('stop').style.display = n && n.describing ? '' : 'none';
+  if (multi) {
+    $('nodeHead').innerHTML = `
+      <div class="row" style="margin:0"><span class="title grow">${sel.length} selected</span><span class="pill">new node</span></div>
+      <div class="dim" style="margin-top:3px">A new node is built beside them. The model sees what each one outputs, and the new node is wired to them.</div>
+      <div class="picked">${sel.map(s => `<span><b>${esc(s.kind === 'alien' ? 'ALIEN' : 'GH')}</b>${esc(s.name)}</span>`).join('')}</div>`;
+    $('nodeBody').innerHTML = '';
+    return;
+  }
   if (!n) {
     $('nodeHead').innerHTML = `<div class="dim" style="margin-bottom:6px">No Alien node selected. Describe a new one, place one from the library, or select a node on the canvas.</div>`;
     $('nodeBody').innerHTML = '';
@@ -243,14 +342,37 @@ function renderAssets() {
 function send() {
   const text = $('prompt').value.trim();
   if (!text) return;
-  post('describe', { text, lang: $('lang').value });
+  post('describe', { text, lang: $('lang').value, fromSelection: selectionMode() || $('fromSel').checked });
   $('prompt').value = '';
 }
 
 $('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('send').onclick = send;
 $('stop').onclick = () => post('stop');
-$('settings').onclick = () => post('settings');
+$('settings').onclick = () => showView(view === 'settings' ? 'main' : 'settings');
+$('settingsDone').onclick = () => showView('main');
+$('openSettingsFile').onclick = () => post('settings');
+$('resetTheme').onclick = () => sendTheme('Alien');
+$('fromSel').onchange = () => renderNode(false);
+for (const k of COLOURS) {
+  // Dragging in the colour picker previews here at once; letting go saves it (and repaints the nodes).
+  $('c-' + k).addEventListener('input', e => {
+    $('h-' + k).value = e.target.value;
+    if (k !== 'background') document.documentElement.style.setProperty('--' + k, e.target.value);
+    else document.documentElement.style.setProperty('--bg', e.target.value);
+  });
+  $('c-' + k).addEventListener('change', () => sendTheme());
+  const commitHex = () => {
+    const v = $('h-' + k).value.trim();
+    if (!isHex(v)) { renderSettingsView(); return; }
+    let hex = v.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+    $('c-' + k).value = '#' + hex.toLowerCase();
+    sendTheme();
+  };
+  $('h-' + k).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commitHex(); e.target.blur(); } });
+  $('h-' + k).addEventListener('blur', commitHex);
+}
 $('dock').onclick = () => post('dock', { where: state.host === 'rhino' ? 'grasshopper' : 'rhino' });
 $('close').onclick = () => post('close');
 $('model').onchange = e => post('model', { value: e.target.value });
@@ -261,9 +383,10 @@ $('tabNodes').onclick = () => setTab('nodes');
 $('tabAssets').onclick = () => setTab('assets');
 $('newNode').onclick = () => post('new', { lang: $('lang').value });
 document.body.addEventListener('click', e => {
-  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act]');
+  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act],[data-preset]');
   if (!t) return;
-  if (t.dataset.cat) { category = t.dataset.cat; renderLibrary(); }
+  if (t.dataset.preset) sendTheme(t.dataset.preset);
+  else if (t.dataset.cat) { category = t.dataset.cat; renderLibrary(); }
   else if (t.dataset.kind) { assetKind = t.dataset.kind; renderAssets(); }
   else if (t.dataset.asset) { picked = picked === t.dataset.asset ? null : t.dataset.asset; renderAssets(); }
   else if (t.dataset.assetAct) {

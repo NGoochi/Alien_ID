@@ -23,23 +23,28 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
 ## What's in it
 
-- **The Alien node:** the script name, a PY / C# badge, its state (ok / error / running), and the error itself on the
-  node when a run fails. The selected node glows.
+- **The Alien node:** the Alien mark and the script name, a PY / C# badge, its state (ok / error / running), and the
+  error itself on the node when a run fails. The selected node glows.
+- **Themes:** pick a preset (Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark/Light,
+  High Contrast, Light, GitHub Light) or your own background, text and accent colours in the panel's settings (⚙).
+  Nodes, the canvas text box and the panel all follow it.
 - **Controls built from the header:** an unwired number input gets a slider. The header's `min`/`max` set its range;
   without them a range is recommended from the default. A `bool` gets a switch, `str` a text field, and
-  `str ... options="a|b|c"` a dropdown, and `bool ... button` a momentary button (true for one solve: for model calls
+  `str ... options="a|b|c"` a dropdown (a text field grows while you type, and clicking anywhere else keeps what you
+  typed), and `bool ... button` a momentary button (true for one solve: for model calls
   and other slow or paid steps, so re-solving never repeats them). `str ... image` takes an image dropped on the node
   and shows a thumbnail; `str ... suggest="vic-address"` suggests addresses while you type. A script can retune its sliders after a run
   (`NODE_CONTROLS`): `object_3d`'s size sliders show and span the size of what it built. Wired inputs collapse to their pin. Values save with the `.gh`, can be undone, and
   are the same values agents set over MCP.
 - **The Alien panel:** it sits glued to the side of the Grasshopper window and moves with it, or docks in Rhino. It
   follows the selected node:
-  - describe a new node or a change to it
+  - describe a new node or a change to it; with several nodes selected (drag a box around them), describe a new node
+    that works with them: the model sees what each one outputs, and the new node is wired to them
   - see every request with its attempts and cost
   - see the node's inputs and code
   - restore an earlier version
-  - pick the model
-  - place nodes from the library, sorted into categories (Site & context, Massing & objects, Entourage, Materials,
+  - pick the model, and set the theme (⚙)
+  - place nodes from the library, sorted into categories (Site & context, Building elements, Massing & objects, Entourage, Materials,
     Views & drawings, Data & lists, Geometry, Analysis, Utilities). A node's category comes from its `# CATEGORY:`
     line; nodes without one are sorted by the model once (cached in `.alien/library.json`), with a keyword guess until
     then
@@ -57,11 +62,16 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   | `site_views` | Plan, site plan, X/Y centreline sections and four elevations around the site as Rhino named views (sections clipped), and an optional layout sheet at standard scales |
   | `object_3d` | Describe a thing ("a dining chair"), or give a picture, and a model writes the code that builds it from solids at real size |
   | `material_texture` | A finish ("board-formed concrete") becomes a seamless texture and a Rhino material at real-world scale |
-
-  Every node that calls a model has a **Generate** button: only that spends credits. Sliders rework the cached result.
-  | `levels` | Building levels from z0, each with its own height |
+  | `bim_site`, `levels`, `grids` | The building suite's base: a site record (origin, grid rotation, north, AHD datum, drawing scale), named levels with RLs, level lines and heads, and BIM-style grids with bubbles, intersections and dimensions |
+  | `wall_types`, `walls`, `doors`, `windows` | Layered walls from Australian build-ups along any curve, joined at corners, with hosted doors and windows cut through them, plan and elevation symbols (swings, opening leaves), and generated designs fitted into leaves |
+  | `curtain_wall` | Mullions, transoms and glass along straight, curved or closed paths between levels, in box, I, T, round, fin or flat bar profiles, with optional trusses |
+  | `beams_columns`, `structure_edit`, `connectors` | A steel, timber or concrete frame on the grids from real Australian sections, edited by pattern ("B-L02-*: section=460UB67.1"), with base plates, splices, end and fin plates, bolts and a schedule |
   | `branch_picker` | Passes chosen branches of a data tree through |
   | `scale_figure`, `scale_tree` | An image model draws a person or tree, traced into true-size outlines, fills and hatches for elevations and plans |
+
+  Every node that calls a model has a **Generate** button: only that spends credits. Sliders rework the cached result.
+  The building nodes pass elements as JSON records (levels, grids, walls, members) and chain by pin name; see
+  [suite/README.md](suite/README.md#building-suite-bim_site-levels-grids-walls-doors-windows-curtain_wall-structure).
 
 - **MCP server** (`http://127.0.0.1:9876/mcp`): agents such as Claude Code or Cursor can place and wire nodes, edit
   scripts, inspect data, capture the viewport and drive Rhino, while you watch.
@@ -107,11 +117,15 @@ Requirements:
 | `classifyModel`, `classify` | Model that sorts uncategorised library nodes (default: `model`); `"classify": "off"` uses keywords only |
 | `ollamaUrl`, `reasoning` | Local model server; reasoning effort (default `low`, and `none` for local models) |
 | `panel` | `"rhino"` docks the panel in Rhino instead of beside Grasshopper |
+| `theme` | Written by the panel's settings: `{"preset", "background", "text", "accent"}` (absent = the Alien preset) |
 
 ## Using it
 
 - **Describe a node:** select a node (or none, to make a new one), open the panel (PANEL on the node, or double-click
   the node) and type what it should do. Follow-ups edit the current script: "make the grid hexagonal".
+- **Build on what's there:** drag a box around two or more nodes (say `levels` and `grids`), then describe a node that
+  uses them ("a floor slab at every level inside the grid"). The new node appears beside them, already wired. With
+  one Alien node selected, tick *Build a new node from this one* to do the same instead of changing it.
 - **Try values:** drag the sliders, flip the switches, type in the fields. A fast script follows a slider live; a slow
   one (network, heavy geometry) runs when you let go.
 - **Right-click a node** for these sections:

@@ -10,7 +10,7 @@ namespace Alien
     public class AlienInfo : GH_AssemblyInfo
     {
         public override string Name => "Alien";
-        public override Bitmap Icon => null;
+        public override Bitmap Icon => Ui.Logo.Icon(24, Color.Black);
         public override string Description => "Live Python 3 / C# script nodes that AI agents build, wire and edit over MCP.";
         public override Guid Id => new Guid("D610DE6A-0FB9-41BD-9AE8-02295A9BBA00");
         public override string AuthorName => "Nick Gauci";

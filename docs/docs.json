@@ -148,6 +148,11 @@
         "key": "panel",
         "meaning": "\"rhino\" docks the panel in Rhino instead of beside Grasshopper",
         "default": null
+      },
+      {
+        "key": "theme",
+        "meaning": "Colours of the nodes, canvas text box and panel: {preset, background, text, accent} (\"#rrggbb\"); written by the panel's settings",
+        "default": "the Alien preset"
       }
     ]
   },
@@ -249,7 +254,7 @@
       {
         "kind": "text field",
         "for": "str, and lists of str/float/int typed as 'a, b, c'",
-        "behaviour": "Edited in place; Enter commits."
+        "behaviour": "Edited in place; the box grows with the text (up to 460 px). Enter, clicking anywhere else (another field too) or scrolling the canvas commits; Escape cancels."
       }
     ],
     "runtime_controls": {
@@ -262,7 +267,8 @@
       }
     },
     "appearance": [
-      "Header with the script name, a PY / C# badge and a state light; a status row (ok / error, run time) with a PANEL button; the error itself in a strip at the bottom; a glow when selected.",
+      "Colours from the theme (panel settings): background, text and accent, the rest mixed from them.",
+      "Header with the Alien mark (in the accent), the script name, a PY / C# badge and a state light; a status row (ok / error, run time) with a PANEL button; the error itself in a strip at the bottom; a glow when selected.",
       "Input dots: green = wired, blue = a value set on the node or by an agent, grey = the header default."
     ],
     "menu": [
@@ -321,14 +327,21 @@
       "Setting panel: \"rhino\" (or the dock button) makes it a Rhino panel."
     ],
     "header": [
+      "The Alien mark (in the accent)",
       "Model picker for describe-a-node",
-      "Settings file",
+      "Settings (⚙)",
       "Dock / undock",
       "Close"
+    ],
+    "settings_view": [
+      "Theme presets: Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark, High Contrast, Light, GitHub Light, Solarized Light",
+      "Background, text and accent colour pickers (with hex fields); changing one makes a custom theme",
+      "Reset to Alien; Open settings file (key, models, script folder, port)"
     ],
     "node_section": [
       "Follows the selected Alien node: name, language, status, description, error",
       "Describe box: a new node (none selected) or a change to the selected one; Enter sends, Shift+Enter for a new line; Stop while running",
+      "Several nodes selected (or one native component, or 'Build a new node from this one' ticked): the selection is listed, and describing builds a new node beside it that sees what each selected node outputs and is wired to them",
       "Requests: every describe request with its outcome and notes",
       "Inputs (current values), Code (with Open in editor / Show file), Earlier versions (Restore)"
     ],
@@ -357,9 +370,14 @@
         "hint": "maps, parcels, terrain, roads, planning data around a site"
       },
       {
+        "key": "building",
+        "label": "Building elements",
+        "hint": "BIM-style elements: site base, levels, grids, walls, doors, windows, curtain walls, beams, columns, connections"
+      },
+      {
         "key": "massing",
         "label": "Massing & objects",
-        "hint": "building masses, floors and levels, furniture and 3D objects"
+        "hint": "building masses, floors, furniture and 3D objects"
       },
       {
         "key": "entourage",
@@ -470,7 +488,8 @@
     "how": [
       "The request, the current script, earlier requests for the node and summaries of the wired inputs go to the model, which returns the whole file.",
       "Alien writes it (the old version goes to .alien/history), re-solves and judges the run report: an error, unset outputs, no outputs or every output empty goes back to the model. Up to 4 attempts.",
-      "Progress shows on the node and in the panel; every request is kept in the node's transcript."
+      "Progress shows on the node and in the panel; every request is kept in the node's transcript.",
+      "From a selection: each selected node's id, header (or component name), output summaries and one building record in full go with the request; the model answers with a 'WIRES: input <- id.output; ...' line and Alien wires the new node before its first judged run. MCP generate takes the same as context: [ids]."
     ],
     "models": "Default anthropic/claude-haiku-5.5 through OpenRouter (providers that don't store or train on prompts); any OpenRouter model or a local Ollama model works.",
     "tested": [
@@ -553,6 +572,330 @@
     ],
     "nodes": [
       {
+        "file": "suite/beams_columns.py",
+        "name": "beams_columns",
+        "category": "Building elements",
+        "listing": "Beams and columns: a structural frame on the grids, columns at intersections storey by storey and beams between intersections at each level, from Australian steel, timber or concrete sections.",
+        "summary": "A structural frame on the grids: columns at intersections (one member per storey) and beams from intersection to intersection at each level, in Australian steel, timber or concrete sections.",
+        "behaviour": [
+          "Sections read forgivingly from alien_sections' catalogue: 193 steel sizes (UB, UC, PFC, SHS, RHS, CHS, EA, UA), glulam, LVL, sawn and concrete ('310 UB 40.4', 'SHS 150x9', '600 dia'); steel snaps to the nearest catalogue size with a note; junk falls back to the material's default.",
+          "Columns at all intersections, the perimeter or none, less a skip list ('B/2, C/3'); they turn with their grid.",
+          "Beams on both, lettered or numbered grids, top_offset below each level, stopping 12 mm off the face they meet (flange, web or flange tips); where no column stands, the continuous beams are primary.",
+          "Member records carry the exact centreline, section spec and name, level, grid and kg (info sums steel tonnes)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every material, columns_at, beams_on and level option; grids rotated 15 and 30 deg (identical beam lengths); a 6x4-bay 6-storey frame (558 members) in 0.15 s."
+        ],
+        "inputs": [
+          {
+            "name": "grids",
+            "type": "object",
+            "access": "list",
+            "description": "grid records (from grids); sample grids when unwired"
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (from levels); sample levels when unwired"
+          },
+          {
+            "name": "column",
+            "type": "str",
+            "access": "item",
+            "description": "column section: 310UC96.8, SHS 150x9, CHS 168.3x7.1, GL18 360x360, concrete 450x450 (blank: the material's default)",
+            "default": ""
+          },
+          {
+            "name": "beam",
+            "type": "str",
+            "access": "item",
+            "description": "beam section: 410UB53.7, 250PFC, RHS 200x100x6, LVL 360x63, concrete 600x400 (blank: the material's default)",
+            "default": ""
+          },
+          {
+            "name": "material",
+            "type": "str",
+            "access": "item",
+            "description": "frame material: picks the default sections and reads bare sizes like 400x400",
+            "default": "steel",
+            "options": [
+              "steel",
+              "timber",
+              "concrete"
+            ]
+          },
+          {
+            "name": "columns_at",
+            "type": "str",
+            "access": "item",
+            "description": "where columns go",
+            "default": "all intersections",
+            "options": [
+              "all intersections",
+              "perimeter",
+              "none"
+            ]
+          },
+          {
+            "name": "skip",
+            "type": "str",
+            "access": "item",
+            "description": "intersections left without a column, e.g. 'B/2, C/3'",
+            "default": ""
+          },
+          {
+            "name": "beams_on",
+            "type": "str",
+            "access": "item",
+            "description": "grid lines that get beams",
+            "default": "both",
+            "options": [
+              "both",
+              "letters",
+              "numbers",
+              "none"
+            ]
+          },
+          {
+            "name": "from_level",
+            "type": "str",
+            "access": "item",
+            "description": "lowest level: name, code or index (blank: the lowest)",
+            "default": ""
+          },
+          {
+            "name": "to_level",
+            "type": "str",
+            "access": "item",
+            "description": "top level (blank: the highest)",
+            "default": ""
+          },
+          {
+            "name": "rotation",
+            "type": "float",
+            "access": "item",
+            "description": "column rotation (degrees) on top of the grid's angle",
+            "min": -180,
+            "max": 180,
+            "default": 0
+          },
+          {
+            "name": "top_offset",
+            "type": "float",
+            "access": "item",
+            "description": "beam tops below each level (m), e.g. the slab thickness",
+            "min": 0,
+            "max": 1.5,
+            "default": 0.15
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): unwired sample grids sit on its origin and rotation"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "members",
+            "type": "str",
+            "access": "list",
+            "description": "member records: wire into structure_edit or connectors"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "every member, in member order"
+          },
+          {
+            "name": "columns",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "beams",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "axes",
+            "type": "Curve",
+            "access": "list",
+            "description": "member centrelines"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "member ids, e.g. C-A/1-GF, B-L01-A-1/2"
+          },
+          {
+            "name": "sections",
+            "type": "str",
+            "access": "list",
+            "description": "section name per member"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "preview colour per member (wire with solids into Custom Preview)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/bim_site.py",
+        "name": "bim_site",
+        "category": "Building elements",
+        "listing": "BIM site: the project's base for the building suite: name, base point, grid rotation, true north and AHD datum as a site record, with north point and base point symbols.",
+        "summary": "The building suite's base: a site record (name, project base point, grid rotation, true north, AHD datum, drawing scale, boundary) that levels, grids and every building node read through their site input.",
+        "behaviour": [
+          "Takes vic_site_map's site (several lots are joined) and datum.",
+          "Origin: a wired point, else the boundary's lower-left corner in project axes (anchor corner), its centroid (centre) or the world origin.",
+          "align takes the grid direction from the lot's long axis or longest edge; rotation turns it further.",
+          "Annotation across the suite is sized in paper mm at the site's drawing scale (1:50 ... 1:1000).",
+          "Outputs the project plane, a north point (with a PN tick when the grid is turned) and a base-point marker."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every anchor x align combination on an irregular lot (longest edge 94.1 deg checked by hand); a real vic_site_map lot, touching lots (joined), disjoint lots, open polylines and circles."
+        ],
+        "inputs": [
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "project name",
+            "default": "Project"
+          },
+          {
+            "name": "boundary",
+            "type": "Curve",
+            "access": "list",
+            "description": "site boundary, e.g. vic_site_map's site (optional; several lots are joined)"
+          },
+          {
+            "name": "origin",
+            "type": "Point3d",
+            "access": "item",
+            "description": "project base point (optional; else set by anchor)"
+          },
+          {
+            "name": "anchor",
+            "type": "str",
+            "access": "item",
+            "description": "where the origin goes when none is wired",
+            "default": "corner",
+            "options": [
+              "corner",
+              "centre",
+              "world origin"
+            ]
+          },
+          {
+            "name": "rotation",
+            "type": "float",
+            "access": "item",
+            "description": "project grid rotation (deg, CCW from world X); with align, turns the aligned grid further",
+            "min": -180,
+            "max": 180,
+            "default": 0,
+            "decimals": 1
+          },
+          {
+            "name": "align",
+            "type": "str",
+            "access": "item",
+            "description": "take the grid direction from the boundary",
+            "default": "off",
+            "options": [
+              "off",
+              "long axis",
+              "longest edge"
+            ]
+          },
+          {
+            "name": "north",
+            "type": "float",
+            "access": "item",
+            "description": "true north (deg, CCW from world +Y; 0 for vic_site_map)",
+            "min": -180,
+            "max": 180,
+            "default": 0,
+            "decimals": 1
+          },
+          {
+            "name": "datum",
+            "type": "float",
+            "access": "item",
+            "description": "AHD (m) of model z = 0: wire vic_site_map's datum",
+            "min": -20,
+            "max": 2000,
+            "default": 0,
+            "decimals": 3
+          },
+          {
+            "name": "scale",
+            "type": "str",
+            "access": "item",
+            "description": "drawing scale for the suite's annotation (levels, grids, symbols)",
+            "default": "1:100",
+            "options": [
+              "1:50",
+              "1:100",
+              "1:200",
+              "1:500",
+              "1:1000"
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "site",
+            "type": "str",
+            "access": "item",
+            "description": "site record: wire into the building nodes' site input"
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "project plane: at the origin, X along the grid"
+          },
+          {
+            "name": "boundary",
+            "type": "Curve",
+            "access": "list",
+            "description": "the joined site boundary"
+          },
+          {
+            "name": "arrow",
+            "type": "Curve",
+            "access": "list",
+            "description": "north point (true north; a PN tick when the grid is turned)"
+          },
+          {
+            "name": "marker",
+            "type": "Curve",
+            "access": "list",
+            "description": "project base point: circle, cross, X/Y axes, datum"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/branch_picker.py",
         "name": "branch_picker",
         "category": "Data & lists",
@@ -614,26 +957,874 @@
         ]
       },
       {
-        "file": "suite/levels.py",
-        "name": "levels",
-        "category": "Massing & objects",
-        "listing": "Levels: a stack of building levels from z0, each with its own floor-to-floor height, with planes, elevations and floor plates.",
-        "summary": "A stack of building levels from z0, each with its own floor-to-floor height: planes, elevations, names, floor plates and the roof plane.",
+        "file": "suite/connectors.py",
+        "name": "connectors",
+        "category": "Building elements",
+        "listing": "Connectors: base plates with anchors, cap plates, column splices, end plates, fin plates and cleats where the frame's members meet, with bolts, optional welds and a schedule.",
+        "summary": "Steel connections found from the members' geometry: base plates with anchors, cap plates, column splices, end plates, fin plates and cleats, with bolts, optional welds and a schedule.",
         "behaviour": [
-          "heights takes a list such as '4.5, 3, , 3.6' (a blank keeps the default height).",
-          "Floor plates come from a wired outline, else a 20 x 12 m sample.",
-          "A junk height falls back to the default with a note."
+          "auto picks per joint: end plates on column flanges, fin plates on webs and between beams; or one type for all.",
+          "Hollow, channel and angle sections, CHS columns, timber knife plates and T-brackets on timber/concrete supports.",
+          "Bolt rows/columns fit the plate (or as given); edge distance and base-plate margin grow when bolts wouldn't fit.",
+          "joints records and a schedule line per joint ('BP A/1 GF: PL 505x508x25, 4 M24 anchors')."
         ],
         "cost": "Free.",
         "checked": [
-          "count 6, heights '4.5, 3, , 3.6', base 1.2: elevations 1.2 / 5.7 / 8.7 / 11.9 / 15.5 / 18.7, roof 21.9 m."
+          "2026-10-13: 28 section-family x type combinations, every option, rotated grids, the chain grids/levels -> beams_columns -> structure_edit -> connectors (196 joints)."
+        ],
+        "inputs": [
+          {
+            "name": "members",
+            "type": "object",
+            "access": "list",
+            "description": "member records (from beams_columns or structure_edit); a sample frame when unwired"
+          },
+          {
+            "name": "type",
+            "type": "str",
+            "access": "item",
+            "description": "connector: auto picks one per joint; any other makes only that kind (every beam end as an end plate, fin plate or cleat)",
+            "default": "auto",
+            "options": [
+              "auto",
+              "base plate",
+              "cap plate",
+              "end plate",
+              "fin plate",
+              "cleat"
+            ]
+          },
+          {
+            "name": "thickness",
+            "type": "float",
+            "access": "item",
+            "description": "plate thickness (mm); 0 = by joint: base 25, cap 16, end 12, fin 10, cleat 10, splice 12",
+            "min": 0,
+            "max": 60,
+            "default": 0
+          },
+          {
+            "name": "bolt",
+            "type": "str",
+            "access": "item",
+            "description": "bolt size (and anchor size at base plates)",
+            "default": "M20",
+            "options": [
+              "M16",
+              "M20",
+              "M24"
+            ]
+          },
+          {
+            "name": "rows",
+            "type": "int",
+            "access": "item",
+            "description": "bolt rows (0 = as many as fit)",
+            "min": 0,
+            "max": 12,
+            "default": 0
+          },
+          {
+            "name": "cols",
+            "type": "int",
+            "access": "item",
+            "description": "bolt columns (0 = by joint: 2 across end and base plates, 1 along fin plates and cleats)",
+            "min": 0,
+            "max": 6,
+            "default": 0
+          },
+          {
+            "name": "edge",
+            "type": "float",
+            "access": "item",
+            "description": "bolt edge distance (mm)",
+            "min": 20,
+            "max": 100,
+            "default": 40
+          },
+          {
+            "name": "margin",
+            "type": "float",
+            "access": "item",
+            "description": "base plate beyond the column (mm)",
+            "min": 0,
+            "max": 300,
+            "default": 100
+          },
+          {
+            "name": "welds",
+            "type": "bool",
+            "access": "item",
+            "description": "preview fillet welds",
+            "default": false
+          }
+        ],
+        "outputs": [
+          {
+            "name": "plates",
+            "type": "Brep",
+            "access": "list",
+            "description": "plates, cleats and stiffeners"
+          },
+          {
+            "name": "bolts",
+            "type": "Brep",
+            "access": "list",
+            "description": "bolts and anchors"
+          },
+          {
+            "name": "welds",
+            "type": "Brep",
+            "access": "list",
+            "description": "fillet welds (with welds on)"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "plates, bolts and welds together, for one Custom Preview"
+          },
+          {
+            "name": "joints",
+            "type": "str",
+            "access": "list",
+            "description": "joint records: id, kind, members, plate, bolts"
+          },
+          {
+            "name": "schedule",
+            "type": "str",
+            "access": "list",
+            "description": "one line per joint, e.g. BP A/1 GF: PL 505x508x25, 4 M24 anchors"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "preview colour per solid"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/curtain_wall.py",
+        "name": "curtain_wall",
+        "category": "Building elements",
+        "listing": "Curtain wall: mullions, transoms, perimeter frame, glass and optional back trusses along a straight, faceted or closed path, between levels.",
+        "summary": "A curtain wall or glazing system along a straight, faceted, curved or closed path, between levels (or a height): mullions, transoms, frame, glass and optional trusses, with a plan cut and records.",
+        "behaviour": [
+          "The exterior is on the right of an open path's direction; closed outlines face out; flip swaps.",
+          "Mullions at a panel width (equal divide, fixed from start or centred); arcs and splines are faceted into straight chords; every corner gets a mullion turned to the bisector.",
+          "Transoms at every level and/or typed heights ('1.2, 2.4', '@1.5', '-0.9' down from the top), per storey or from the wall base.",
+          "Mullion and transom profiles box, I, T, round, fin (frameless glass with 12 mm joints) or flat bar, in mm.",
+          "Optional warren, pratt, howe or vierendeel trusses behind the mullions (depth, chord and web sections).",
+          "Member counts are capped (300 mullions, 1,500 cells, 1,500 truss members) with a note."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every profile pair, truss type and fit mode; line, arc, spline, circle, CW/CCW rectangles, L-shape, sloped and doubled-back paths; offsets and flip; a 48 m 12-storey wall with trusses (956 valid solids)."
+        ],
+        "inputs": [
+          {
+            "name": "path",
+            "type": "Curve",
+            "access": "item",
+            "description": "base line in plan: the glazing line before offset; exterior on its right, closed outlines face out (sample: a 12 m line)"
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (sample: 3 storeys at 3.2 m)"
+          },
+          {
+            "name": "base",
+            "type": "str",
+            "access": "item",
+            "description": "base level: name, code, index or an elevation like 4.5 (blank = the lowest)",
+            "default": ""
+          },
+          {
+            "name": "top",
+            "type": "str",
+            "access": "item",
+            "description": "top level: name, code or index, -2 = second from the top (blank = the highest)",
+            "default": ""
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "height above the base level (m); 0 = up to the top level",
+            "min": 0,
+            "max": 200,
+            "default": 0
+          },
+          {
+            "name": "panel",
+            "type": "float",
+            "access": "item",
+            "description": "panel width (m): mullion spacing",
+            "min": 0.1,
+            "max": 12,
+            "default": 1.5
+          },
+          {
+            "name": "fit",
+            "type": "str",
+            "access": "item",
+            "description": "what happens to the remainder",
+            "default": "equal divide",
+            "options": [
+              "equal divide",
+              "fixed from start",
+              "centred"
+            ]
+          },
+          {
+            "name": "transom_heights",
+            "type": "str",
+            "access": "item",
+            "description": "transom heights (m), e.g. '1.2, 2.4'; '@1.5' = every 1.5 m; negative = down from the top",
+            "default": ""
+          },
+          {
+            "name": "measure",
+            "type": "str",
+            "access": "item",
+            "description": "transom heights are measured from",
+            "default": "each storey",
+            "options": [
+              "each storey",
+              "wall base"
+            ]
+          },
+          {
+            "name": "at_levels",
+            "type": "bool",
+            "access": "item",
+            "description": "a transom at every level (slab edge)",
+            "default": true
+          },
+          {
+            "name": "profile",
+            "type": "str",
+            "access": "item",
+            "description": "mullion profile",
+            "default": "box",
+            "options": [
+              "box",
+              "I",
+              "T",
+              "round",
+              "fin",
+              "flat bar"
+            ]
+          },
+          {
+            "name": "width",
+            "type": "float",
+            "access": "item",
+            "description": "mullion face width (mm)",
+            "min": 10,
+            "max": 400,
+            "default": 50
+          },
+          {
+            "name": "depth",
+            "type": "float",
+            "access": "item",
+            "description": "mullion depth (mm), perpendicular to the facade; round: the diameter",
+            "min": 20,
+            "max": 1000,
+            "default": 150
+          },
+          {
+            "name": "transom_profile",
+            "type": "str",
+            "access": "item",
+            "description": "transom profile",
+            "default": "same",
+            "options": [
+              "same",
+              "box",
+              "I",
+              "T",
+              "round",
+              "fin",
+              "flat bar"
+            ]
+          },
+          {
+            "name": "transom_width",
+            "type": "float",
+            "access": "item",
+            "description": "transom face height (mm); 0 = as the mullion",
+            "min": 0,
+            "max": 400,
+            "default": 0
+          },
+          {
+            "name": "transom_depth",
+            "type": "float",
+            "access": "item",
+            "description": "transom depth (mm); 0 = as the mullion",
+            "min": 0,
+            "max": 1000,
+            "default": 0
+          },
+          {
+            "name": "glazing",
+            "type": "float",
+            "access": "item",
+            "description": "glass thickness (mm)",
+            "min": 4,
+            "max": 80,
+            "default": 28
+          },
+          {
+            "name": "offset",
+            "type": "float",
+            "access": "item",
+            "description": "glazing line offset from the path (m); + = outwards",
+            "min": -2,
+            "max": 2,
+            "default": 0
+          },
+          {
+            "name": "flip",
+            "type": "bool",
+            "access": "item",
+            "description": "swap inside and outside",
+            "default": false
+          },
+          {
+            "name": "truss",
+            "type": "str",
+            "access": "item",
+            "description": "trusses behind the mullions (inside face)",
+            "default": "none",
+            "options": [
+              "none",
+              "warren",
+              "pratt",
+              "howe",
+              "vierendeel"
+            ]
+          },
+          {
+            "name": "truss_depth",
+            "type": "float",
+            "access": "item",
+            "description": "truss depth, chord centre to chord centre (m)",
+            "min": 0.2,
+            "max": 4,
+            "default": 0.8
+          },
+          {
+            "name": "chord",
+            "type": "str",
+            "access": "item",
+            "description": "chord section in mm: depth x width [x wall], e.g. 'box 100x100', 'round 114x6', 'I 150x75'",
+            "default": "box 100x100"
+          },
+          {
+            "name": "web",
+            "type": "str",
+            "access": "item",
+            "description": "web section in mm, e.g. 'round 60', 'box 60x60'",
+            "default": "round 60"
+          },
+          {
+            "name": "cut",
+            "type": "float",
+            "access": "item",
+            "description": "plan cut height above the base (m)",
+            "min": 0,
+            "max": 100,
+            "default": 1
+          }
+        ],
+        "outputs": [
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "mullions, transoms, frame, glass and trusses, in that order"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "preview colour per solid"
+          },
+          {
+            "name": "mullions",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "transoms",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "frame",
+            "type": "Brep",
+            "access": "list",
+            "description": "jambs, sills and heads"
+          },
+          {
+            "name": "glass",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "trusses",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "cut at the plan height: member outlines and glass"
+          },
+          {
+            "name": "grid",
+            "type": "Curve",
+            "access": "list",
+            "description": "the curtain grid on the glazing plane"
+          },
+          {
+            "name": "panels",
+            "type": "Brep",
+            "access": "list",
+            "description": "cell surfaces on the grid, facing out"
+          },
+          {
+            "name": "records",
+            "type": "str",
+            "access": "list",
+            "description": "curtain_wall record, then one curtain_panel per cell"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/doors.py",
+        "name": "doors",
+        "category": "Building elements",
+        "listing": "Doors: hosted doors (swing, double, sliding, pocket, bifold) cut into walls, with frames, leaves, plan swings and elevation marks.",
+        "summary": "Doors hosted in wall records: single or double swing, sliding, pocket, bifold, at distances along a wall or at points, cut through every layer, with frames, leaves and drawing symbols.",
+        "behaviour": [
+          "Positions '1.2, -1, 50%' (negative = back from the end), or points (nearest wall); wall by id, index, list or 'all'.",
+          "Openings stay clear of corners and wall ends and never overlap (skipped or moved with a note).",
+          "walls in, walls out: each record gains its openings, so walls -> doors -> windows chains, and solids are the walls with every opening so far cut (straight walls rebuilt face by face, curved ones by Booleans).",
+          "hand is seen from the side the door opens into; swing in or out.",
+          "Drawings: plan (leaf drawn open with its swing arc), reflected (seen from below), elevation (dashed V to the hinges).",
+          "design: generated geometry (e.g. object_3d's parts) is fitted into each leaf, mirrored for right hands."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every family x hand x swing on straight, arc and spline walls; hand checked on 6 wall orientations (24/24); junk, negative, % and overlapping positions; a cached object_3d design."
+        ],
+        "inputs": [
+          {
+            "name": "walls",
+            "type": "object",
+            "access": "list",
+            "description": "wall records from walls (or from windows / another doors node); a sample wall when unwired"
+          },
+          {
+            "name": "wall",
+            "type": "str",
+            "access": "item",
+            "description": "which wall: id or index, several with commas, or 'all' (blank: the first; points: the nearest)",
+            "default": ""
+          },
+          {
+            "name": "positions",
+            "type": "str",
+            "access": "list",
+            "description": "door centres along the wall (m): '1.2, 4.5'; negative = back from the end, '50%' = halfway (blank: mid-wall)",
+            "default": ""
+          },
+          {
+            "name": "points",
+            "type": "Point3d",
+            "access": "list",
+            "description": "or points: each door goes to the nearest wall"
+          },
+          {
+            "name": "width",
+            "type": "float",
+            "access": "item",
+            "description": "overall width, frame included (m)",
+            "min": 0.5,
+            "max": 6,
+            "default": 0.9
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "overall height from the floor (m)",
+            "min": 1.5,
+            "max": 4,
+            "default": 2.1
+          },
+          {
+            "name": "family",
+            "type": "str",
+            "access": "item",
+            "description": "door type",
+            "default": "single swing",
+            "options": [
+              "single swing",
+              "double swing",
+              "sliding",
+              "pocket",
+              "bifold"
+            ]
+          },
+          {
+            "name": "hand",
+            "type": "str",
+            "access": "item",
+            "description": "hinge side seen from the side it opens into (sliding, pocket, bifold: the side it opens towards)",
+            "default": "left",
+            "options": [
+              "left",
+              "right"
+            ]
+          },
+          {
+            "name": "swing",
+            "type": "str",
+            "access": "item",
+            "description": "the side it opens into (in = the wall's interior)",
+            "default": "in",
+            "options": [
+              "in",
+              "out"
+            ]
+          },
+          {
+            "name": "frame",
+            "type": "float",
+            "access": "item",
+            "description": "frame (jamb) width (m)",
+            "min": 0.02,
+            "max": 0.2,
+            "default": 0.04
+          },
+          {
+            "name": "design",
+            "type": "Geometry",
+            "access": "list",
+            "description": "a generated leaf design (e.g. object_3d parts), fitted into each leaf (optional)"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "openings",
+            "type": "str",
+            "access": "list",
+            "description": "door records"
+          },
+          {
+            "name": "walls",
+            "type": "str",
+            "access": "list",
+            "description": "wall records with every opening so far (wire into windows)"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "the walls' layer solids with every opening cut"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "parts",
+            "type": "Geometry",
+            "access": "list",
+            "description": "frames, leaves and glass together"
+          },
+          {
+            "name": "part_colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per part"
+          },
+          {
+            "name": "frames",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "leaves",
+            "type": "Geometry",
+            "access": "list",
+            "description": "leaves (or the fitted design)"
+          },
+          {
+            "name": "glass",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "walls cut at the plan height, open at the doors"
+          },
+          {
+            "name": "symbols",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan symbols: frame, leaf drawn open, swing arc"
+          },
+          {
+            "name": "reflected",
+            "type": "Curve",
+            "access": "list",
+            "description": "seen from below (reflected ceiling plan): head, frame, closed leaves"
+          },
+          {
+            "name": "elevation",
+            "type": "Curve",
+            "access": "list",
+            "description": "on the exterior face: outline and opening lines (dashed V points to the hinges)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/grids.py",
+        "name": "grids",
+        "category": "Building elements",
+        "listing": "Grids: architectural column grids like Revit or ArchiCAD: numbered and lettered grids from bay sizes, on the site's origin and rotation, with heads, intersections and dimensions.",
+        "summary": "Revit/ArchiCAD-style grids on the site's origin and rotation: grid records, lines, bubble heads, intersections named 'A/1' and dimension strings.",
+        "behaviour": [
+          "Bays as '7.2, 7.2, 8.4' or '3x7.2' (values over 100 read as mm); numbers along X and letters along Y by default (swap with labels), start labels such as '4', 'C', 'X1'; I and O skipped; AA after Z.",
+          "Heads (bubbles) at both, start, end or no ends, sized in paper mm at the drawing scale.",
+          "Custom angled or curved grids with names; their crossings are found on the curve.",
+          "Bay and overall dimensions in mm on the start sides."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: spacing formats, label options, extensions 0-20, custom arcs, rotated sites (30 and 94 deg); intersections match alien_bim.intersections."
+        ],
+        "inputs": [
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record from bim_site: grids start at its origin and run along its rotation"
+          },
+          {
+            "name": "x_spacing",
+            "type": "str",
+            "access": "item",
+            "description": "bays along project X (m): '7.2, 7.2, 8.4' or '3x7.2'; empty = no grids that way",
+            "default": "3x7.2"
+          },
+          {
+            "name": "y_spacing",
+            "type": "str",
+            "access": "item",
+            "description": "bays along project Y (m)",
+            "default": "2x6"
+          },
+          {
+            "name": "labels",
+            "type": "str",
+            "access": "item",
+            "description": "numbered or lettered grids along X (the other way gets the other)",
+            "default": "numbers along X",
+            "options": [
+              "numbers along X",
+              "letters along X"
+            ]
+          },
+          {
+            "name": "x_start",
+            "type": "str",
+            "access": "item",
+            "description": "first label of the grids along X ('1', '4', 'C', 'X1')",
+            "default": "1"
+          },
+          {
+            "name": "y_start",
+            "type": "str",
+            "access": "item",
+            "description": "first label of the grids along Y",
+            "default": "A"
+          },
+          {
+            "name": "skip_io",
+            "type": "bool",
+            "access": "item",
+            "description": "skip I and O in letters (they read as 1 and 0)",
+            "default": true
+          },
+          {
+            "name": "extension",
+            "type": "float",
+            "access": "item",
+            "description": "grid lines run past the outermost grids (m)",
+            "min": 0,
+            "max": 20,
+            "default": 3
+          },
+          {
+            "name": "bubble",
+            "type": "float",
+            "access": "item",
+            "description": "head diameter on paper (mm) at the drawing scale",
+            "min": 4,
+            "max": 30,
+            "step": 0.5,
+            "default": 10
+          },
+          {
+            "name": "ends",
+            "type": "str",
+            "access": "item",
+            "description": "heads at",
+            "default": "both",
+            "options": [
+              "both",
+              "start",
+              "end",
+              "none"
+            ]
+          },
+          {
+            "name": "scale",
+            "type": "str",
+            "access": "item",
+            "description": "drawing scale of the heads and dimensions",
+            "default": "site",
+            "options": [
+              "site",
+              "1:50",
+              "1:100",
+              "1:200",
+              "1:500"
+            ]
+          },
+          {
+            "name": "custom",
+            "type": "Curve",
+            "access": "list",
+            "description": "extra grids: angled or curved curves (optional)"
+          },
+          {
+            "name": "custom_names",
+            "type": "str",
+            "access": "list",
+            "description": "names of the custom grids (default G1, G2 ...)"
+          },
+          {
+            "name": "dimensions",
+            "type": "bool",
+            "access": "item",
+            "description": "bay and overall dimension strings (mm) on the start sides",
+            "default": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "grids",
+            "type": "str",
+            "access": "list",
+            "description": "grid records: wire into the building nodes' grids input"
+          },
+          {
+            "name": "lines",
+            "type": "Curve",
+            "access": "list",
+            "description": "grid lines"
+          },
+          {
+            "name": "heads",
+            "type": "Curve",
+            "access": "list",
+            "description": "bubbles: circle and name"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "one per grid line"
+          },
+          {
+            "name": "points",
+            "type": "Point3d",
+            "access": "list",
+            "description": "grid intersections"
+          },
+          {
+            "name": "point_names",
+            "type": "str",
+            "access": "list",
+            "description": "'A/1' ..."
+          },
+          {
+            "name": "dims",
+            "type": "Curve",
+            "access": "list",
+            "description": "dimension linework"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/levels.py",
+        "name": "levels",
+        "category": "Building elements",
+        "listing": "Levels: a stack of named building levels (basements, storeys, roof) with RLs from the site datum, level lines and heads for elevations, plan labels and floor plates.",
+        "summary": "Named building levels (basements, storeys, roof) from a ground level above the site origin, with level records, level lines, datum-symbol heads and plan labels for drawings.",
+        "behaviour": [
+          "count, height and per-storey heights ('4.5, 3, , 3.6'; a blank keeps the default); basements below the ground level; an optional Roof level.",
+          "Naming: Level 1 | L1 | L01 | Level 01 | LVL 1 | custom ('Floor #', '##F'), a ground name and a start number.",
+          "RL = site datum + elevation ('RL 23.460' with an AHD datum, else 'RL +3.200').",
+          "Level lines run along project X and/or Y past the plates by margin; heads at either or both ends.",
+          "The old outputs (planes, elevations, floor_heights, names, plates, roof, total) stay one per storey; levels, lines, heads, annotations, labels and rl include the roof."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every naming and ground option, counts 1-100, junk heights, basements, the chain bim_site -> levels (origin z, rotation, datum, scale)."
         ],
         "inputs": [
           {
             "name": "count",
             "type": "int",
             "access": "item",
-            "description": "number of levels",
+            "description": "storeys from the ground up",
             "min": 1,
             "max": 100,
             "default": 4
@@ -651,20 +1842,147 @@
             "name": "heights",
             "type": "str",
             "access": "list",
-            "description": "per-level heights (m), from the ground up, e.g. '4.5, 3, , 3.6' (a blank keeps height)"
+            "description": "per-storey heights (m), from the lowest up, e.g. '4.5, 3, , 3.6' (a blank keeps height)"
           },
           {
             "name": "base",
             "type": "float",
             "access": "item",
-            "description": "elevation of the first level (m)",
+            "description": "ground level above the site origin (m)",
+            "min": -20,
+            "max": 50,
             "default": 0
           },
           {
             "name": "outline",
             "type": "Curve",
             "access": "item",
-            "description": "floor plate to copy to every level (optional)"
+            "description": "floor plate to copy to every storey (optional; else the site boundary or a 20 x 12 m sample)"
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record from bim_site: places the levels, datum gives RLs, scale sizes the text"
+          },
+          {
+            "name": "naming",
+            "type": "str",
+            "access": "item",
+            "description": "level names",
+            "default": "Level 1",
+            "options": [
+              "Level 1",
+              "L1",
+              "L01",
+              "Level 01",
+              "LVL 1",
+              "custom"
+            ]
+          },
+          {
+            "name": "prefix",
+            "type": "str",
+            "access": "item",
+            "description": "custom names: prefix + number, or # for the number ('Floor #', '##F' gives 01F)",
+            "default": "Floor #"
+          },
+          {
+            "name": "start",
+            "type": "int",
+            "access": "item",
+            "description": "number of the first numbered level",
+            "min": -5,
+            "max": 100,
+            "default": 1
+          },
+          {
+            "name": "ground",
+            "type": "str",
+            "access": "item",
+            "description": "name of the ground level",
+            "default": "Ground",
+            "options": [
+              "Ground",
+              "Ground Floor",
+              "GF",
+              "G",
+              "numbered"
+            ]
+          },
+          {
+            "name": "basements",
+            "type": "int",
+            "access": "item",
+            "description": "storeys below ground (Basement 1 is just below)",
+            "min": 0,
+            "max": 10,
+            "default": 0
+          },
+          {
+            "name": "roof_level",
+            "type": "bool",
+            "access": "item",
+            "description": "add a Roof level on top of the last storey",
+            "default": true
+          },
+          {
+            "name": "view",
+            "type": "str",
+            "access": "item",
+            "description": "level lines for which elevations",
+            "default": "both",
+            "options": [
+              "front (along X)",
+              "side (along Y)",
+              "both"
+            ]
+          },
+          {
+            "name": "ends",
+            "type": "str",
+            "access": "item",
+            "description": "level heads at",
+            "default": "right",
+            "options": [
+              "right",
+              "left",
+              "both",
+              "none"
+            ]
+          },
+          {
+            "name": "margin",
+            "type": "float",
+            "access": "item",
+            "description": "level lines run past the floor plates (m)",
+            "min": 0,
+            "max": 20,
+            "default": 2
+          },
+          {
+            "name": "scale",
+            "type": "str",
+            "access": "item",
+            "description": "drawing scale of the annotation",
+            "default": "site",
+            "options": [
+              "site",
+              "1:50",
+              "1:100",
+              "1:200",
+              "1:500"
+            ]
+          },
+          {
+            "name": "text",
+            "type": "float",
+            "access": "item",
+            "description": "text height on paper (mm) at the drawing scale",
+            "min": 1,
+            "max": 10,
+            "step": 0.5,
+            "default": 3.5
           }
         ],
         "outputs": [
@@ -672,42 +1990,84 @@
             "name": "planes",
             "type": "Plane",
             "access": "list",
-            "description": "one per level"
+            "description": "one per storey"
           },
           {
             "name": "elevations",
             "type": "float",
             "access": "list",
-            "description": "level z (m)"
+            "description": "storey z (m)"
           },
           {
             "name": "floor_heights",
             "type": "float",
             "access": "list",
-            "description": "floor-to-floor of each level (m)"
+            "description": "floor-to-floor of each storey (m)"
           },
           {
             "name": "names",
             "type": "str",
-            "access": "list"
+            "access": "list",
+            "description": "storey names"
           },
           {
             "name": "plates",
             "type": "Curve",
             "access": "list",
-            "description": "floor plate at each level"
+            "description": "floor plate at each storey"
           },
           {
             "name": "roof",
             "type": "Plane",
             "access": "item",
-            "description": "top of the last level"
+            "description": "top of the last storey"
           },
           {
             "name": "total",
             "type": "float",
             "access": "item",
-            "description": "base to roof (m)"
+            "description": "ground to roof (m)"
+          },
+          {
+            "name": "levels",
+            "type": "str",
+            "access": "list",
+            "description": "level records, storeys and roof: wire into the building nodes' levels input"
+          },
+          {
+            "name": "lines",
+            "type": "Curve",
+            "access": "list",
+            "description": "level lines for elevations and sections"
+          },
+          {
+            "name": "heads",
+            "type": "Curve",
+            "access": "list",
+            "description": "level heads: datum symbol, name and RL at the line ends"
+          },
+          {
+            "name": "annotations",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan label on each level: 'LEVEL 1  RL +3.200'"
+          },
+          {
+            "name": "labels",
+            "type": "str",
+            "access": "list",
+            "description": "one per level"
+          },
+          {
+            "name": "rl",
+            "type": "float",
+            "access": "list",
+            "description": "reduced level of each level (m): datum + elevation"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
           }
         ]
       },
@@ -1313,6 +2673,131 @@
         ]
       },
       {
+        "file": "suite/structure_edit.py",
+        "name": "structure_edit",
+        "category": "Building elements",
+        "listing": "Structure edit: resize, move, rotate, remove or extend members of a frame picked by id patterns or filters, several edits at once, keeping ids so connectors still find them.",
+        "summary": "Edits a frame after creation: resize, move, rotate, remove or extend members picked by id wildcards or filters, with several edits at once; ids are kept.",
+        "behaviour": [
+          "select: 'C-A/*', 'B-L02-*', or filters level=L02 grid=A role=beam section=310UC* material=steel; * = all.",
+          "edits: one 'pattern: key=value ...' line per edit, applied in order (section=, remove, move=dx,dy,dz, rotate=, extend=).",
+          "Resize takes a section name or up/down a size; beams keep their tops.",
+          "Beams framing into a changed member are re-trimmed to its new face; edited members preview green and are listed in changed."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every action through the dropdown and edit lines, every filter, up/down sizing, junk lines; connectors follow the edits (a column turned 90 deg swaps end plates and fin plates)."
+        ],
+        "inputs": [
+          {
+            "name": "members",
+            "type": "object",
+            "access": "list",
+            "description": "member records (from beams_columns or another structure_edit); a sample frame when unwired"
+          },
+          {
+            "name": "select",
+            "type": "str",
+            "access": "item",
+            "description": "members to edit: ids with * wildcards (C-A/*, B-L02-*) and/or filters level=L02 grid=A role=beam section=310UC* material=steel; blank = none, * = all",
+            "default": ""
+          },
+          {
+            "name": "action",
+            "type": "str",
+            "access": "item",
+            "description": "what to do to the selection",
+            "default": "resize",
+            "options": [
+              "resize",
+              "move",
+              "rotate",
+              "remove",
+              "extend"
+            ]
+          },
+          {
+            "name": "section",
+            "type": "str",
+            "access": "item",
+            "description": "resize to: a section name (460UB67.1, SHS 200x9, GL18 450x135), or up / down a size",
+            "default": ""
+          },
+          {
+            "name": "offset",
+            "type": "str",
+            "access": "item",
+            "description": "move by: dx, dy, dz (m)",
+            "default": "0, 0, 0"
+          },
+          {
+            "name": "rotation",
+            "type": "float",
+            "access": "item",
+            "description": "rotate by (degrees) about each member's own axis",
+            "min": -180,
+            "max": 180,
+            "default": 0
+          },
+          {
+            "name": "extend",
+            "type": "float",
+            "access": "item",
+            "description": "extend both ends by (m); negative shortens",
+            "min": -3,
+            "max": 3,
+            "default": 0
+          },
+          {
+            "name": "edits",
+            "type": "str",
+            "access": "list",
+            "description": "more edits, one per line, in order: 'B-L02-*: section=460UB67.1', 'C-B/2-*: remove', 'level=RF role=beam: move=0,0,0.1 rotate=5', 'C-A/1-GF: extend=0.5,0'"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "members",
+            "type": "str",
+            "access": "list",
+            "description": "member records, ids kept (wire into connectors)"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "every member, in member order"
+          },
+          {
+            "name": "columns",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "beams",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "preview colour per solid: edited members green"
+          },
+          {
+            "name": "changed",
+            "type": "str",
+            "access": "list",
+            "description": "ids of members that changed (edited, or beams refitted to an edited support)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/vic_site_map.py",
         "name": "vic_site_map",
         "category": "Site & context",
@@ -1529,6 +3014,473 @@
             "description": "tree trunks"
           }
         ]
+      },
+      {
+        "file": "suite/wall_types.py",
+        "name": "wall_types",
+        "category": "Building elements",
+        "listing": "Wall type: a layered wall build-up (brick veneer, double brick, stud, concrete, CLT, AAC... or your own layers) for the walls node.",
+        "summary": "A wall build-up: an Australian preset (brick veneer, double brick, timber stud, steel stud partition, concrete 200, precast 150, blockwork 190, CLT, rendered AAC) or your own layers, as a wall_type record.",
+        "behaviour": [
+          "Layers run exterior -> interior in mm ('brick 110; cavity 40; timber stud 90*; plasterboard 10'; m and cm work; * marks the core); a layers text replaces the preset's.",
+          "Junk tokens are reported one by one; an empty custom falls back to a generic 200 mm wall.",
+          "Outputs layer names, materials, thicknesses, the total and a stepped swatch with colours."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every preset; custom layers with junk, zero, negative and huge thicknesses."
+        ],
+        "inputs": [
+          {
+            "name": "preset",
+            "type": "str",
+            "access": "item",
+            "description": "a common Australian build-up, or custom (from layers)",
+            "default": "brick veneer",
+            "options": [
+              "brick veneer",
+              "double brick",
+              "timber stud",
+              "steel stud partition",
+              "concrete 200",
+              "precast 150",
+              "blockwork 190",
+              "CLT",
+              "rendered AAC",
+              "custom"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "type name (blank: the preset's)",
+            "default": ""
+          },
+          {
+            "name": "layers",
+            "type": "str",
+            "access": "list",
+            "description": "layers exterior -> interior, thickness in mm: 'brick 110; cavity 40; timber stud 90*; plasterboard 10' (* = core). Replaces the preset's layers when given",
+            "default": ""
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the swatch sits (default: world origin)"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "wall_type",
+            "type": "str",
+            "access": "item",
+            "description": "wall_type record for walls"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "layer names, exterior first"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "layer materials"
+          },
+          {
+            "name": "thicknesses",
+            "type": "float",
+            "access": "list",
+            "description": "layer thicknesses (m)"
+          },
+          {
+            "name": "total",
+            "type": "float",
+            "access": "item",
+            "description": "overall thickness (m)"
+          },
+          {
+            "name": "swatch",
+            "type": "Brep",
+            "access": "list",
+            "description": "a stepped section sample, one solid per layer"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per swatch solid"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/walls.py",
+        "name": "walls",
+        "category": "Building elements",
+        "listing": "Walls: layered walls along lines, polylines, arcs or closed outlines, from a base level to a top level, with plan linework.",
+        "summary": "Layered walls along curves (lines, polylines, arcs, splines, closed outlines) from a base level to the next (or a named level, or a height), with wall records, one solid per layer, plan linework and centrelines.",
+        "behaviour": [
+          "The exterior is on the left of an open path; closed outlines put it outside; flip swaps.",
+          "Location line: centre, exterior, interior or core centre.",
+          "Corners within a wall are mitred exactly; with join on, walls meeting end to end are mitred (L) and walls stopping inside another are trimmed to its face (T). Crossings (X) are left overlapping.",
+          "Layers that fold over on bends too tight for the wall are dropped with a note.",
+          "Plan linework is cut at a height above the base (default 1 m)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: lines, arcs, splines, L and T pairs, circles, filleted and concave rooms, odd and too-tight paths, all 4 locations x flip (valid outward-facing solids; layer positions checked numerically), wired levels."
+        ],
+        "inputs": [
+          {
+            "name": "path",
+            "type": "Curve",
+            "access": "list",
+            "description": "wall location lines: lines, polylines, arcs, splines, closed outlines (a sample room when unwired)"
+          },
+          {
+            "name": "wall_type",
+            "type": "object",
+            "access": "list",
+            "description": "wall_types record(s), one per path (the last repeats; default: generic 200 mm)"
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (sample levels when unwired)"
+          },
+          {
+            "name": "base",
+            "type": "str",
+            "access": "item",
+            "description": "base level: name, code or index (blank: the first)",
+            "default": ""
+          },
+          {
+            "name": "top",
+            "type": "str",
+            "access": "item",
+            "description": "top level: name, code or index (blank: the level above the base)",
+            "default": ""
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "height (m); 0 = up to the top level",
+            "min": 0,
+            "max": 30,
+            "default": 0
+          },
+          {
+            "name": "offset",
+            "type": "float",
+            "access": "item",
+            "description": "base offset from the base level (m)",
+            "min": -5,
+            "max": 5,
+            "default": 0
+          },
+          {
+            "name": "location",
+            "type": "str",
+            "access": "item",
+            "description": "which line of the wall the path is",
+            "default": "centre",
+            "options": [
+              "centre",
+              "exterior",
+              "interior",
+              "core centre"
+            ]
+          },
+          {
+            "name": "flip",
+            "type": "bool",
+            "access": "item",
+            "description": "swap the exterior and interior sides",
+            "default": false
+          },
+          {
+            "name": "join",
+            "type": "bool",
+            "access": "item",
+            "description": "clean joins: mitre L corners, trim walls that butt into others",
+            "default": true
+          },
+          {
+            "name": "cut",
+            "type": "float",
+            "access": "item",
+            "description": "plan cut height above the base level (m)",
+            "min": 0,
+            "max": 3,
+            "default": 1.0
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): places the sample room"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "walls",
+            "type": "str",
+            "access": "list",
+            "description": "wall records (for doors and windows)"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "one solid per layer per wall"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "material per solid"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan linework at the cut height: every layer boundary and the wall ends"
+          },
+          {
+            "name": "centrelines",
+            "type": "Curve",
+            "access": "list",
+            "description": "centre of each wall's thickness, at its base"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/windows.py",
+        "name": "windows",
+        "category": "Building elements",
+        "listing": "Windows: hosted windows (fixed, casement, awning, hopper, sliding, double hung) cut into walls, with frames, sashes, glass and drawing symbols.",
+        "summary": "Windows hosted in wall records: fixed, casement, awning, hopper, sliding, double hung, at a sill height, cut through every layer, with frames, sashes, glass and drawing symbols.",
+        "behaviour": [
+          "Hosted, placed and chained like doors; a window may sit above a door.",
+          "Plan symbols are dashed when the window is above the cut; reflected view; elevation marks show the hinge side (side-hung casement, top-hung awning, bottom-hung hopper) or arrows (sliding, double hung).",
+          "design: generated geometry is fitted into each sash."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-13: every family x hand x swing on straight and curved walls, high and full-height sills, the chain wall_types -> walls -> doors -> doors -> windows (6 windows 61 ms)."
+        ],
+        "inputs": [
+          {
+            "name": "walls",
+            "type": "object",
+            "access": "list",
+            "description": "wall records from walls or doors (or another windows node); a sample wall when unwired"
+          },
+          {
+            "name": "wall",
+            "type": "str",
+            "access": "item",
+            "description": "which wall: id or index, several with commas, or 'all' (blank: the first; points: the nearest)",
+            "default": ""
+          },
+          {
+            "name": "positions",
+            "type": "str",
+            "access": "list",
+            "description": "window centres along the wall (m): '1.2, 4.5'; negative = back from the end, '50%' = halfway (blank: mid-wall)",
+            "default": "25%, 75%"
+          },
+          {
+            "name": "points",
+            "type": "Point3d",
+            "access": "list",
+            "description": "or points: each window goes to the nearest wall"
+          },
+          {
+            "name": "width",
+            "type": "float",
+            "access": "item",
+            "description": "overall width, frame included (m)",
+            "min": 0.3,
+            "max": 6,
+            "default": 1.2
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "overall height (m)",
+            "min": 0.3,
+            "max": 4,
+            "default": 1.2
+          },
+          {
+            "name": "sill",
+            "type": "float",
+            "access": "item",
+            "description": "sill height above the floor (m)",
+            "min": 0,
+            "max": 3,
+            "default": 0.9
+          },
+          {
+            "name": "family",
+            "type": "str",
+            "access": "item",
+            "description": "window type",
+            "default": "awning",
+            "options": [
+              "fixed",
+              "casement",
+              "awning",
+              "hopper",
+              "sliding",
+              "double hung"
+            ]
+          },
+          {
+            "name": "hand",
+            "type": "str",
+            "access": "item",
+            "description": "casement: hinge side seen from the side it opens into; sliding: the side it opens towards",
+            "default": "left",
+            "options": [
+              "left",
+              "right"
+            ]
+          },
+          {
+            "name": "swing",
+            "type": "str",
+            "access": "item",
+            "description": "the side sashes open into",
+            "default": "out",
+            "options": [
+              "in",
+              "out"
+            ]
+          },
+          {
+            "name": "frame",
+            "type": "float",
+            "access": "item",
+            "description": "frame width (m)",
+            "min": 0.02,
+            "max": 0.2,
+            "default": 0.05
+          },
+          {
+            "name": "design",
+            "type": "Geometry",
+            "access": "list",
+            "description": "a generated sash design (e.g. object_3d parts), fitted into each sash (optional)"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "openings",
+            "type": "str",
+            "access": "list",
+            "description": "window records"
+          },
+          {
+            "name": "walls",
+            "type": "str",
+            "access": "list",
+            "description": "wall records with every opening so far"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "the walls' layer solids with every opening cut"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "parts",
+            "type": "Geometry",
+            "access": "list",
+            "description": "frames, sashes and glass together"
+          },
+          {
+            "name": "part_colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per part"
+          },
+          {
+            "name": "frames",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "sashes",
+            "type": "Geometry",
+            "access": "list",
+            "description": "sashes (or the fitted design)"
+          },
+          {
+            "name": "glass",
+            "type": "Brep",
+            "access": "list"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "walls cut at the plan height, open at the windows"
+          },
+          {
+            "name": "symbols",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan symbols: frame and sashes (the opening dashed when above the cut)"
+          },
+          {
+            "name": "reflected",
+            "type": "Curve",
+            "access": "list",
+            "description": "seen from below (reflected ceiling plan): head, frame, sashes"
+          },
+          {
+            "name": "elevation",
+            "type": "Curve",
+            "access": "list",
+            "description": "on the exterior face: outline, sashes and opening lines (dashed V points to the hinges)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
       }
     ],
     "helpers": [
@@ -1574,7 +3526,7 @@
     "tools": [
       {
         "name": "canvas",
-        "description": "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins) and wires 'src.out>dst.in'.",
+        "description": "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user) and wires 'src.out>dst.in'.",
         "parameters": [
           {
             "name": "filter",
@@ -1778,6 +3730,11 @@
             "name": "attempts",
             "type": "number",
             "description": "Max attempts (default 4)"
+          },
+          {
+            "name": "context",
+            "type": "array",
+            "description": "Nodes the new node works with: the model sees what they output and wires them in"
           },
           {
             "name": "x",

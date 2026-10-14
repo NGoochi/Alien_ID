@@ -66,8 +66,9 @@ Verified against Rhino 8.32 (decompiled + smoke-tested 2026-09-30):
 `SpecialFolder.ApplicationData/Alien/settings.json`: `%APPDATA%` on Windows; inside Rhino on macOS that resolves to
 `~/Library/Application Support` (not `~/.config` as plain .NET would). Keys: `repository`, `port` (default 9876),
 `editor` (e.g. `"code"`, `"cursor"`), `openrouterKey`, `model`, `ollamaUrl`, `reasoning`, `imageModel`, `model3d`,
-`classifyModel`, `classify` (`"off"`: keywords only), `panel`. The file is re-read when it
-changes (no Rhino restart) and saved owner-only (it holds an API key).
+`classifyModel`, `classify` (`"off"`: keywords only), `panel`, `theme` (`{preset, background, text, accent}`, written
+by the panel's settings; absent = the Alien preset). The file is re-read when it changes (no Rhino restart) and saved
+owner-only (it holds an API key). `ScriptRepository.SettingToken` / `SetSettingToken` read and write non-string keys.
 
 ## Node UI and the Alien panel (`src/AlienAttributes.cs`, `src/Ui/`)
 
@@ -78,8 +79,25 @@ changes (no Rhino restart) and saved owner-only (it holds an API key).
   - Values go through `AlienComponent.SetManualValues`, the same store as MCP `set_values`. Undo comes from
     `UndoUtil.RecordGenericObjectEvent`, which serialises the node.
 - Text entry (text fields, typed slider values) is `InlineEditor`: a borderless WinForms TextBox added to the canvas
-  over the field (Grasshopper's own `GH_TextBoxInputBase` works on Mac too, but brings a ✓/✗ strip). Enter or losing
-  focus commits, Escape cancels.
+  over the field (Grasshopper's own `GH_TextBoxInputBase` works on Mac too, but brings a ✓/✗ strip). Enter, losing
+  focus, any canvas click outside the box or a mouse-wheel scroll commits; Escape cancels.
+  - The box grows with its text (measured with `Graphics.MeasureString`) from the field's width up to 460 px or the
+    canvas edge; a frame painted in `CanvasPostPaintObjects` outlines it in the accent.
+  - Typing used to be lost when another field was clicked: `Show` for the new field called `Close(false)` on the open
+    one, and the old box's deferred LostFocus commit could then close the new box. `Show` now commits the open box
+    first, and a deferred LostFocus only closes the box it belongs to.
+  - The canvas MouseDown and the node's RespondToMouseDown both hear one click, in an order we don't control. A click
+    that picked a suggestion is remembered for 400 ms (`InlineEditor.Consumed`), so the node doesn't also treat it as
+    a click on the control under the list.
+- Theme (`Ui/Theme.cs`): three chosen colours (background, text, accent; a preset or custom, saved as settings
+  `theme`), everything else mixed from them (header, IO band, fields, edges, dim text, muted grey; light themes get
+  darker status colours and stronger outlines). `Theme.Current` is read on every node repaint, so it re-checks the
+  settings at most once a second. The panel gets the theme as CSS variables (`theme.css`) in each state push;
+  `Theme.Set` (page message `theme`) saves it, raises `Theme.Changed`, and the canvas redraws.
+- The Alien mark (`Ui/Logo.cs`, source `docs/brand/alien-mark.svg`): the SVG path (absolute M, C, Z only) parsed once
+  into a `GraphicsPath` and fitted into a box; drawn in the accent before the title in each node's header, in black
+  as Grasshopper's component and library icon (`Logo.Icon(24, Color.Black)`). The panel header has the same path as
+  inline SVG filled with `var(--accent)`.
 - The selected node draws a soft accent glow (rings fading outwards) instead of its shadow. The panel follows the
   selection, so the glow marks the node the panel is showing.
 - `NodeControls`: which control an input gets, recommended ranges (header `min`/`max`, else 0..2x the default rounded
@@ -113,6 +131,14 @@ changes (no Rhino restart) and saved owner-only (it holds an API key).
   default is dropped, so "0 = as built" never pins a slider at 0.
 - Describe from the node: `AlienComponent.StartDescribe` runs `Generator.Run` on a pool thread. Each request is a
   `TranscriptEntry` saved in the .gh ("Transcript", JSON, last 50).
+- Describe from a selection: with several nodes selected (or one that isn't an Alien node, or "Build a new node from
+  this one" ticked), the panel's describe places a blank node to the right of the selection and passes the selected
+  ids as `ContextIds` (in memory, kept for follow-ups). `NodeContext.Read` turns each into a block for the model (id,
+  Alien header and description or the component's name and category, every output's data summary, and one building
+  record in full); the request asks for a `WIRES: input <- id.output; ...` line after the code. `Prompts.Wires` parses
+  it, and `Generator.Apply` adds the wires (matched by short id prefix or nickname, then output nickname or name) after
+  the first solve has built the pins, then solves again before judging the run. The MCP `generate` tool takes the
+  same context as `context: [ids]`.
 - `AlienPanel`: an Eto `Panel` with a `WebView` showing the embedded `Ui/pane.html`.
   - It is registered with `Rhino.UI.Panels.RegisterPanel` under Grasshopper's own Rhino plug-in (`PlugIn.Find`), so no .rhp
     is needed.

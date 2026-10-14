@@ -75,13 +75,49 @@ Reference:
             }
             else sb.Append("The node has no script yet.\n\n");
 
+            if (ctx.Units != null)
+                sb.Append("The Rhino document is in ").Append(ctx.Units).Append(": give inputs in metres and convert real-world sizes to ")
+                  .Append("model units in the code (Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, Rhino.RhinoDoc.ActiveDoc.ModelUnitSystem)).\n\n");
             if (ctx.Wired.Count > 0)
             {
                 sb.Append("Wired inputs (what arrives on each pin right now):\n");
                 foreach (var w in ctx.Wired) sb.Append("- ").Append(w).Append('\n');
             }
             else sb.Append("Nothing is wired into the node yet.\n");
+
+            if (ctx.Selected.Count > 0)
+            {
+                sb.Append("\nThe user selected these nodes on the canvas with the request: this node works with them (takes their ")
+                  .Append("outputs, continues what they do). Their ids, what they are, and what they output right now:\n");
+                foreach (var s in ctx.Selected) sb.Append(s).Append('\n');
+                if (ctx.Selected.Any(x => x.Contains("{\"alien\"")))
+                    sb.Append("\nItems like {\"alien\": \"level\", ...} are building-element records from Alien's building suite: JSON text, ")
+                      .Append("one per element; read them with json.loads. Their lengths are metres in world coordinates; geometry on pins is in model units.\n");
+                sb.Append("\nGive this node an input for each output it uses, typed to match what arrives (text records stay str/object). ")
+                  .Append("After the code block, add one line saying which wires to make, and Alien makes them before running the node:\n")
+                  .Append("WIRES: <input> <- <id>.<output>; <input> <- <id>.<output>\n")
+                  .Append("(for a selected parameter such as a slider or panel, write just <id>). Keep wired inputs on following replies.\n");
+            }
             return sb.ToString();
+        }
+
+        private static readonly Regex WiresLine = new Regex(@"^\s*(?:#|//)?\s*WIRES:\s*(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly Regex WireItem = new Regex(@"^\s*`?([A-Za-z_]\w*)`?\s*(?:<-|<=|←|=)\s*`?\[?([0-9a-fA-F]{4,32}|[\w ]+?)\]?(?:\.([\w ]+?))?`?\s*$", RegexOptions.Compiled);
+
+        /// <summary>The wires a reply asks for ("WIRES: a <- 1f2e3d4c.out; b <- 5a6b7c8d"), outside its code block.</summary>
+        public static IReadOnlyList<(string input, string source, string output)> Wires(string reply)
+        {
+            var list = new List<(string, string, string)>();
+            var all = Think.Replace(reply ?? "", "");
+            var outside = WiresLine.Matches(Fence.Replace(all, ""));
+            // Normally after the code block; a model that put it in the code as a comment is understood too.
+            foreach (Match m in outside.Count > 0 ? outside : WiresLine.Matches(all))
+                foreach (var part in m.Groups[1].Value.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var w = WireItem.Match(part.Trim().TrimEnd('.'));
+                    if (w.Success) list.Add((w.Groups[1].Value, w.Groups[2].Value.Trim(), w.Groups[3].Success ? w.Groups[3].Value.Trim() : null));
+                }
+            return list;
         }
 
         public static string Retry(string problem) =>

@@ -15,8 +15,10 @@ touching C#, [docs/DEV_NOTES.md](docs/DEV_NOTES.md) (hard-won facts).
   - Later, a shared online library.
 - **Status (Oct 2026):** Phase 1 of BRIEF.md is done (node redesign, describe-a-node, the suite) plus the UI work
   below, library categories, the generated-asset library, and four more suite nodes (site_views, object_3d,
-  material_texture, vic_site_map v2 with terrain, streets and trees). Phases 2–3 (Cloudflare library, accounts, Stripe
-  test mode) are not started.
+  material_texture, vic_site_map v2 with terrain, streets and trees). On 13 Oct 2026: themes (presets + custom colours),
+  the Alien mark, a growing text box that keeps typing on click-away, describe-a-node from a selection (auto-wired), and
+  a first-pass building suite (bim_site, levels v2, grids, wall_types, walls, doors, windows, curtain_wall,
+  beams_columns, structure_edit, connectors). Phases 2–3 (Cloudflare library, accounts, Stripe test mode) are not started.
 
 ## Architecture
 
@@ -36,14 +38,19 @@ src/
   Ai/                   ModelClient (OpenRouter / Ollama, one OpenAI-style client), Generator (the retry loop),
                         Prompts (system prompt = rules + AGENT_GUIDE sections), Transcript (per-node request history)
   Ui/                   AlienPanel (Eto WebView showing pane.html), AlienSidecar (panel window glued to the GH editor),
-                        NodeControls (control kind, recommended ranges), InlineEditor (text box on the canvas), pane.html
+                        NodeControls (control kind, recommended ranges), InlineEditor (text box on the canvas), Theme
+                        (presets + colours mixed from background/text/accent), Logo (the Alien mark as a GDI path),
+                        Suggest, ImageDrop, pane.html
   Mcp/                  McpServer (hand-rolled Streamable HTTP, JSON only), Tools*.cs (the tool set), Describe (compact
                         run reports), UiThread (all Rhino/GH calls marshalled to the UI thread, tool calls serialised)
 suite/                  the preloaded nodes (Python) + helpers: alien_graphics (figure/tree drawings), alien_ai (settings,
                         OpenRouter chat/vision/images, caches), alien_assets (asset library writer), alien_vicdata
-                        (terrain, trees, street sections for vic_site_map)
+                        (terrain, trees, street sections for vic_site_map), alien_bim (building records, units, levels,
+                        grids, text curves, sections, member solids), alien_walls (walls and openings), alien_sections
+                        (Australian section catalogue)
 docs/AGENT_GUIDE.md     agent reference: served by the MCP `docs` tool AND embedded in describe-a-node's prompt
 tests/describe/         the describe-a-node test harness (suite.py) + results
+tests/bim/chain.py      places, wires and checks the whole building suite on the open canvas
 tools/                  drive a running Rhino from a shell (see tools/README.md)
 ```
 
@@ -62,12 +69,23 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
   - **Setting `"panel": "rhino"`:** a Rhino panel, registered under Grasshopper's own Rhino plug-in (no .rhp needed).
   - **Bridge:** page → C# is `window.eto.postMessage(json)` → `MessageReceived`. C# → page is
     `ExecuteScriptAsync("window.alien.state(json)")`.
+- **Theme:** people pick three colours (background, text, accent) or a preset; everything else is mixed from them
+  (`Ui/Theme.cs`), so adding a preset is one line and light themes work without special cases. Saved as settings
+  `theme`; the panel gets it as CSS variables. The Alien mark (`docs/brand/alien-mark.svg`) is drawn in the accent on
+  nodes and the panel, and in black as Grasshopper's icon.
+- **Describe from a selection:** a box around several nodes means "build on these": a new node is placed beside them,
+  the model sees what each outputs, and its `WIRES:` line is wired before the first judged run. This keeps chains
+  continuous (levels and grids -> a slab node) without the user wiring by hand.
 - **Describe-a-node:**
   - The model always returns the whole file.
   - Alien writes it (the old version goes to `.alien/history`), re-solves, and judges the run report: an error, unset
     outputs, no outputs, or every output empty sends the report back. Up to 4 attempts.
   - The default model is `anthropic/claude-haiku-5.5`, chosen from tests/describe (10/10 on the first try).
   - The in-node prompt bar was removed on purpose (two prompt places confused people); describing happens in the panel.
+- **Building elements travel as JSON records** (`alien_bim.pack` / `read`), one per element, because Grasshopper
+  turns Python objects into their repr text on the wire. Records are metres in world coordinates and carry enough to
+  rebuild the element (doors rebuild and cut the walls from wall records), so chains stay plain wires and agents and
+  models can read them. Each node still outputs ordinary geometry for previews and baking.
 - **Suite nodes speak metres and scale to the model's units.** They give sample geometry when unwired, so they show
   something straight away. After the header: a `# CATEGORY:` line, then a one-line description (the library listing).
 - **Library categories are fixed** (Library.Categories: Site & context, Massing & objects, Entourage, Materials, Views &
@@ -109,6 +127,11 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
 - **`run_code` (MCP)** runs in its own Python scope, without the nodes' `sys.modules`. To debug a helper, insert the
   script folder into `sys.path` and import it there.
 - **Rhino C# scripts:** a top-level `return;` skips writing `result`. Use if/else.
+- **RhinoCode sets every Python output to None before the script runs**, so "never assigned" can't be read from the
+  scope: an output still None whose name the code never mentions is reported unset (`ScriptRunner`). The epilogue
+  calls builtins through `import builtins`, so scripts may name inputs `type`, `list` or `set`.
+- **A wired empty list reaches a script exactly like an unwired input**, so a suite node shows its sample geometry when
+  the node upstream outputs nothing. Say so in `info` when it matters.
 - **`CreateInterpolatedCurve(..., ChordPeriodic)`** only closes if the point list repeats its first point at the end.
 - **Ollama thinking models** (qwen3.x) need `reasoning_effort: "none"`, or they think for minutes.
 - **MCP `add` name lookup** prefers an exact name over a nickname, and a component over a same-named parameter.
