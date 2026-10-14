@@ -226,6 +226,8 @@ namespace Alien.Ui
                         ["model"] = ScriptRepository.Setting("model") ?? ModelChoice.DefaultModel,
                         ["models"] = new JArray(Models),
                         ["hasKey"] = !string.IsNullOrWhiteSpace(ScriptRepository.Setting("openrouterKey")),
+                        ["keyHint"] = OpenRouterAccount.Hint(ScriptRepository.Setting("openrouterKey")),
+                        ["settingsFile"] = ScriptRepository.SettingsFile,
                     },
                 };
                 var json = state.ToString(Formatting.None);
@@ -337,6 +339,19 @@ namespace Alien.Ui
                         }
                         break;
                     }
+                    case "openUrl":
+                        if (!AlienUi.OpenUrl(m.Value<string>("url"))) Toast("That link can't be opened from here.");
+                        return;
+                    case "setKey":
+                        LinkKey(m.Value<string>("key"));
+                        return;
+                    case "testKey":
+                        LinkKey(null);
+                        return;
+                    case "removeKey":
+                        ScriptRepository.SetSetting("openrouterKey", "");
+                        KeyStatus(new JObject { ["ok"] = false, ["reachable"] = true, ["message"] = "Key removed from this computer. (It still works on OpenRouter until you delete it there.)" });
+                        break;
                     case "theme":
                         Theme.Set(m.Value<string>("preset"), m.Value<string>("background"), m.Value<string>("text"), m.Value<string>("accent"));
                         break;
@@ -392,6 +407,38 @@ namespace Alien.Ui
             }
             catch (Exception ex) { RhinoApp.WriteLine("Alien panel: " + ex.Message); }
         }
+
+        /// <summary>
+        /// Check a pasted key (or, with null, the saved one) with OpenRouter, off the UI thread, then save it if
+        /// OpenRouter accepts it, or if OpenRouter can't be reached right now (saved, with a note). A key OpenRouter
+        /// refuses is not saved.
+        /// </summary>
+        private void LinkKey(string pasted)
+        {
+            var key = pasted != null ? OpenRouterAccount.Clean(pasted) : ScriptRepository.Setting("openrouterKey");
+            KeyStatus(new JObject { ["busy"] = true, ["message"] = "Checking with OpenRouter…" });
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                JObject r;
+                try { r = await OpenRouterAccount.Check(key).ConfigureAwait(false); }
+                catch (Exception ex) { r = new JObject { ["ok"] = false, ["reachable"] = false, ["message"] = ex.Message }; }
+                Application.Instance.AsyncInvoke(() =>
+                {
+                    bool save = pasted != null && OpenRouterAccount.LooksLikeKey(key) && (r.Value<bool>("ok") || !r.Value<bool>("reachable"));
+                    if (save)
+                    {
+                        ScriptRepository.SetSetting("openrouterKey", key);
+                        if (!r.Value<bool>("ok")) r["message"] = "Saved, but not checked: " + r.Value<string>("message");
+                        r["saved"] = true;
+                    }
+                    KeyStatus(r);
+                    Push(true);
+                });
+            });
+        }
+
+        private void KeyStatus(JObject status) =>
+            _web.ExecuteScriptAsync("window.alien && window.alien.keyStatus && window.alien.keyStatus(" + status.ToString(Formatting.None) + ")");
 
         /// <summary>Place the suite node that made an asset, with the inputs that made it (cached, so it costs nothing).</summary>
         private static string PlaceRecipe(string kind, string id)

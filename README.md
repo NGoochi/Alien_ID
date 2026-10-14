@@ -5,7 +5,7 @@ a two-line header. You describe what you want in plain English and a model write
 own errors. Nodes live as plain files, so they can be shared, and AI agents can drive everything through a built-in
 MCP server.
 
-*Status: alpha 0.01 ([releases](https://github.com/NGoochi/Alien_ID/releases)), a working prototype for a uni mini-MBA
+*Status: alpha 0.02 ([releases](https://github.com/NGoochi/Alien_ID/releases)), a working prototype for a uni mini-MBA
 pitch (mock business: no real sales). Phase 1 of [BRIEF.md](BRIEF.md) is
 done; the online library, accounts and payments (Phases 2–3) are not built yet.*
 
@@ -44,6 +44,9 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   - see the node's inputs and code
   - restore an earlier version
   - pick the model, and set the theme (⚙)
+  - **Help (?)**: step by step, create an OpenRouter account, add credit, make a key and link it (Alien checks the key
+    with OpenRouter and shows your credit), plus getting started, costs and troubleshooting. It opens by itself the
+    first time if no key is linked
   - place nodes from the library, sorted into categories (Site & context, Building elements, Massing & objects, Entourage, Materials,
     Views & drawings, Data & lists, Geometry, Analysis, Utilities). A node's category comes from its `# CATEGORY:`
     line; nodes without one are sorted by the model once (cached in `.alien/library.json`), with a keyword guess until
@@ -78,10 +81,14 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
 ## Install
 
-**From a release (recommended):** download `Alien-0.01-alpha.zip` from the
-[releases page](https://github.com/NGoochi/Alien_ID/releases), unzip it, and run `install-mac.command` (macOS) or
-`install-windows.bat` (Windows) with Rhino closed. [installer/INSTALL.md](installer/INSTALL.md) has the full steps,
-first run, costs and troubleshooting. One `Alien.gha` serves both platforms; Windows is untested in this alpha.
+**From a release (recommended):** download the installer from the
+[releases page](https://github.com/NGoochi/Alien_ID/releases) and run it with Rhino closed:
+`Alien-0.02-alpha-Setup.exe` on Windows (no admin rights needed; it can link your OpenRouter key and start Rhino
+for you) or `Alien-0.02-alpha.pkg` on macOS. Both are unsigned for now, so Windows SmartScreen asks for *More info >
+Run anyway* and macOS for *System Settings > Privacy & Security > Open Anyway*. Then open the Alien panel and click
+**?**: Help walks you through creating an OpenRouter account and linking the key, step by step.
+[installer/INSTALL.md](installer/INSTALL.md) has the full steps, costs, uninstalling and a by-hand zip. One
+`Alien.gha` serves both platforms; Windows is untested in this alpha.
 
 **From source:**
 
@@ -97,11 +104,12 @@ Requirements:
 
    The Rhino install paths for the references are in `src/Alien.csproj` (override with `-p:RhinoSystemDir=… -p:RhinoGhDir=…`).
 3. Start Rhino and open Grasshopper. The MCP server starts when Grasshopper loads.
-4. Place an **Alien** node (tab *Alien › Script*). The first time, pick a **script repository** folder: your scripts
-   live there, not in this repo, and `.gh` files refer to scripts relative to it.
-5. Add your key: right-click a node, then *Open settings file*, and fill in `"openrouterKey"`. The file is
-   `%APPDATA%\Alien\settings.json` on Windows and `~/Library/Application Support/Alien/settings.json` on macOS. It is
-   re-read when it changes; no restart is needed.
+4. Place an **Alien** node (tab *Alien › Script*). Your scripts live in the **script repository**, `Documents/Alien
+   scripts` unless you choose another folder (right-click a node > *Script repository*), never in this repo; `.gh` files
+   refer to scripts relative to it.
+5. Link your key: open the Alien panel, click **?** and follow *Connect OpenRouter* (or put `"openrouterKey"` in
+   `%APPDATA%\Alien\settings.json` on Windows, `~/Library/Application Support/Alien/settings.json` on macOS; the file
+   is re-read when it changes).
 
 ### Settings (`settings.json`)
 

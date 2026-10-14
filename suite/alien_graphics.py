@@ -103,7 +103,7 @@ def image(prompt, aspect, variant=0, model=None, strict=False, allow_new=True):
 
     api_key = (setting("openrouterKey") or "").strip()
     if not api_key:
-        raise ValueError("No OpenRouter key: add \"openrouterKey\" to Alien's settings.json (right-click a node > Settings).")
+        raise ValueError("No OpenRouter key yet: open the Alien panel's Help (?) and follow \"Connect OpenRouter\".")
     body = {"model": model, "modalities": ["image", "text"], "messages": [{"role": "user", "content": text}],
             "usage": {"include": True}, "provider": {"data_collection": "deny"}}
     if model.startswith("google/"):

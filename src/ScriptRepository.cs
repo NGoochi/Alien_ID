@@ -105,6 +105,18 @@ namespace Alien
 
         public static bool IsConfigured => Root != null;
 
+        /// <summary>
+        /// First run, no script folder chosen yet: use Documents/Alien scripts, so nothing asks before the first node
+        /// (the installers set the same folder). A folder that was chosen but is missing (a drive unplugged) is left
+        /// for the user to fix. Right-click a node > Script repository changes it.
+        /// </summary>
+        public static void EnsureDefaultRoot()
+        {
+            if (!string.IsNullOrWhiteSpace(Settings.Value<string>("repository"))) return;
+            try { SetRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Alien scripts")); }
+            catch { /* unwritable Documents: the first node asks instead */ }
+        }
+
         public static void SetRoot(string path)
         {
             var full = Path.GetFullPath(path);

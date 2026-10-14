@@ -18,7 +18,9 @@ touching C#, [docs/DEV_NOTES.md](docs/DEV_NOTES.md) (hard-won facts).
   material_texture, vic_site_map v2 with terrain, streets and trees). On 13 Oct 2026: themes (presets + custom colours),
   the Alien mark, a growing text box that keeps typing on click-away, describe-a-node from a selection (auto-wired), and
   a first-pass building suite (bim_site, levels v2, grids, wall_types, walls, doors, windows, curtain_wall,
-  beams_columns, structure_edit, connectors). Phases 2–3 (Cloudflare library, accounts, Stripe test mode) are not started.
+  beams_columns, structure_edit, connectors). On 14 Oct 2026 (0.02-alpha): one-click installers (Windows Setup.exe,
+  macOS .pkg) and an in-panel Help screen that links an OpenRouter key. Phases 2–3 (Cloudflare library, accounts,
+  Stripe test mode) are not started.
 
 ## Architecture
 
@@ -36,7 +38,8 @@ src/
   AlienUi.cs            dialogs and shell helpers (editor, reveal, settings file)
   Scripting/            HeaderParser (header grammar -> ParamDef), ScriptRunner (RhinoCode), TypeMap, Values
   Ai/                   ModelClient (OpenRouter / Ollama, one OpenAI-style client), Generator (the retry loop),
-                        Prompts (system prompt = rules + AGENT_GUIDE sections), Transcript (per-node request history)
+                        Prompts (system prompt = rules + AGENT_GUIDE sections), Transcript (per-node request history),
+                        OpenRouterAccount (the Help screen's key check and credit balance)
   Ui/                   AlienPanel (Eto WebView showing pane.html), AlienSidecar (panel window glued to the GH editor),
                         NodeControls (control kind, recommended ranges), InlineEditor (text box on the canvas), Theme
                         (presets + colours mixed from background/text/accent), Logo (the Alien mark as a GDI path),
@@ -52,6 +55,8 @@ docs/AGENT_GUIDE.md     agent reference: served by the MCP `docs` tool AND embed
 tests/describe/         the describe-a-node test harness (suite.py) + results
 tests/bim/chain.py      places, wires and checks the whole building suite on the open canvas
 tools/                  drive a running Rhino from a shell (see tools/README.md)
+installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ (productbuild .pkg), art/ (icon and
+                        wizard images drawn from the mark), INSTALL.md, and the by-hand scripts for the zip
 ```
 
 ### Key decisions (and why)
@@ -159,15 +164,24 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
 ## Releases
 
 - **Version:** `src/AlienInfo.cs` (`Version`), `src/Mcp/McpServer.cs` (`Version`) and `src/Alien.csproj`
-  (`InformationalVersion`; `Version` must stay numeric) say the same thing, e.g. `0.01-alpha`.
-- **Package:** `bash tools/package.sh` builds without deploying and writes `dist/Alien-<version>.zip` (Alien.gha +
-  `installer/` files, Windows scripts with CRLF) and its `.sha256`. `dist/` is git-ignored.
-- **Check before publishing:** quit Rhino, run the zip's `install-mac.command`, start Rhino, and confirm `/health`
-  reports the new version and nodes solve.
-- **Publish:** merge to main, then `gh release create v<version> dist/Alien-<version>.zip dist/Alien-<version>.zip.sha256
-  --prerelease --title "Alien <version>"`.
-- 0.01-alpha (13 Oct 2026) was built on macOS; the same .gha should load on Windows (Rhino 8 on .NET Core) but is
-  untested there.
+  (`InformationalVersion`; `Version` must stay numeric, e.g. `0.0.2`) say the same thing, e.g. `0.02-alpha`.
+- **Package:** `bash tools/package.sh` builds without deploying and writes to `dist/` (git-ignored):
+  - `Alien-<version>-Setup.exe`: NSIS installer (needs `brew install makensis`; package.sh sets `LANG`, because
+    makensis dies with `std::bad_alloc` in a shell with no locale). Per user, no admin: Alien.gha into
+    `%APPDATA%\Grasshopper\Libraries`, settings merged by `installer/windows/settings.ps1` (script folder, optional key),
+    uninstaller + Settings > Apps entry. Waits for Rhino to close; can start Rhino with Grasshopper.
+  - `Alien-<version>.pkg`: pkgbuild + productbuild, current-user domain only (~/Library/...); its installation check
+    refuses while Rhino runs (`system.applications.fromIdentifier('com.mcneel.rhinoceros.8')`).
+  - `Alien-<version>.zip` (by hand) and `Alien-<version>.sha256` (all three).
+  - Artwork (icon, wizard bitmaps, pkg background) is drawn by `installer/art/render.swift` from the mark. NSIS needs
+    bottom-up 24-bit BMPs; `sips` writes top-down ones, which crash makensis.
+- **Check before publishing:** quit Rhino, `installer -pkg dist/Alien-<version>.pkg -target CurrentUserHomeDirectory`,
+  start Rhino, and confirm `/health` reports the new version and nodes solve. List the exe's contents with
+  `7zz l dist/Alien-<version>-Setup.exe` (`brew install sevenzip`). Both installers are unsigned (SmartScreen / Gatekeeper
+  ask once); the exe has not been run on Windows yet.
+- **Publish:** merge to main, then `gh release create v<version> dist/Alien-<version>-Setup.exe dist/Alien-<version>.pkg
+  dist/Alien-<version>.zip dist/Alien-<version>.sha256 --prerelease --title "Alien <version>"`.
+- 0.01-alpha (13 Oct 2026) was the zip with install scripts. 0.02-alpha adds the installers.
 
 ## Conventions
 
@@ -180,7 +194,7 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
   and the model), this file, and docs/docs.json: after changing a suite node, a setting or an MCP tool, run
   `python3 tools/docs_json.py --check` with Rhino open (it re-reads pins, categories and tools, and fails on gaps).
 - **Never put API keys in `.gh` files, scripts or this repo.** They live in settings.json only; `.gitignore` covers
-  `settings.json` and `.alien/`.
+  `settings.json` and `.alien/`. The panel never receives the key, only `OpenRouterAccount.Hint` ("sk-or-v1-…9f3a").
 
 ## Security notes
 
@@ -192,7 +206,8 @@ tools/                  drive a running Rhino from a shell (see tools/README.md)
   - show the code and add a review step before anything runs
   - route model and image calls through the plugin (`alien_graphics` currently reads the key via
     `ScriptRepository.Setting`)
-- **The panel page escapes everything it shows**, and its WebView refuses navigation and new windows.
+- **The panel page escapes everything it shows**, and its WebView refuses navigation and new windows. Help links open
+  in the browser through `AlienUi.OpenUrl`, which allows only https openrouter.ai and the Alien GitHub repo.
 
 ## Next up
 

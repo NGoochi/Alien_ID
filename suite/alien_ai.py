@@ -57,7 +57,7 @@ def key_of(*parts):
 def _post(body, timeout=180):
     api_key = (setting("openrouterKey") or "").strip()
     if not api_key:
-        raise ValueError("No OpenRouter key: add \"openrouterKey\" to Alien's settings.json (right-click a node > Settings).")
+        raise ValueError("No OpenRouter key yet: open the Alien panel's Help (?) and follow \"Connect OpenRouter\".")
     body = dict(body, usage={"include": True}, provider={"data_collection": "deny"})
     req = urllib.request.Request(OPENROUTER, data=json.dumps(body).encode(),
                                  headers=dict(UA, Authorization="Bearer " + api_key, **{"Content-Type": "application/json", "X-Title": "Alien"}))

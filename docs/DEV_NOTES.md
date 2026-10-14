@@ -167,6 +167,20 @@ owner-only (it holds an API key). `ScriptRepository.SettingToken` / `SetSettingT
   Place node: `Place(script)` then `PresetManualValues(inputs)`.
 - Page-only state (tabs, chips, the picked asset) lives in the page; `tools/panel.py --js "<script>"` runs JavaScript
   in the panel to click through it when testing.
+- Help view (`?`): the OpenRouter steps with buttons that post `openUrl` (allow-listed in `AlienUi.OpenUrl`), a key
+  box that posts `setKey`, and Check credit / Remove (`testKey`, `removeKey`). `AlienPanel.LinkKey` runs
+  `OpenRouterAccount.Check` off the UI thread: GET `/api/v1/key` (401 = refused; limit_remaining, expires_at) and
+  `/api/v1/credits` (total_credits − total_usage), then saves the key if OpenRouter accepted it, or if OpenRouter
+  couldn't be reached (saved with a note). The result goes to the page as `window.alien.keyStatus(...)`. A pasted key
+  is trimmed of spaces, quotes and newlines first. State carries `hasKey` and `keyHint` only. With no key, the page
+  shows a banner, and opens Help once by itself (`localStorage alien.helpSeen`).
+- Theme colour fields send a change only when the value differs from the current theme: a blur on an unchanged field
+  used to resend the colours it last showed (that is how a stale "GitHub Light" came back).
+- Panel captures need Rhino in front (a WKWebView in an occluded window captures black). `tools/pane_snapshot.swift`
+  renders pane.html off screen with a state saved by `panel.py --state`, so the page can be checked without taking
+  focus from the user.
+- First run: `ScriptRepository.EnsureDefaultRoot` (on Grasshopper load) sets the script folder to Documents/Alien
+  scripts when none was ever chosen, so the first node no longer asks; a chosen folder that's missing is left alone.
 
 ## Describe-a-node (`src/Ai/`)
 

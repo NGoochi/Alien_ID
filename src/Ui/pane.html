@@ -6,7 +6,9 @@
 :root{--bg:#1e1e1e;--card:#252525;--field:#2e2e2e;--edge:#3a3a3a;--hover:#555;--text:#d7d7d7;--dim:#8c8c8c;--accent:#00c853;--on-accent:#141414;--code:#161616;--tile:#2c2c2c;--toast:#1e3a2a;--amber:#e0a020;--red:#e14646;--blue:#5aa0ff;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:12.5px/1.45 -apple-system,"Segoe UI",Helvetica,sans-serif;-webkit-user-select:none;user-select:none}
-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--edge)}
+header{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--edge)}
+header #model{min-width:0;flex:0 1 auto;max-width:132px}
+header button.icon{padding:3px 6px;flex:none}
 header b{font-size:13px;flex:1}
 .mark{height:17px;width:auto;flex:none;fill:var(--accent)}
 section{padding:10px 12px;border-bottom:1px solid var(--edge)}
@@ -78,6 +80,27 @@ input.hex{width:86px;padding:3px 6px;font:11px/1.4 Menlo,Consolas,monospace;-web
 .picked{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
 .picked span{border:1px solid var(--edge);border-radius:99px;padding:1px 8px;font-size:11px}
 .picked span b{font-weight:600;color:var(--accent);margin-right:4px;font-size:9.5px}
+.steps{counter-reset:step;margin:8px 0 6px;padding:0;list-style:none}
+.steps li{position:relative;padding:9px 0 10px 32px;border-top:1px solid var(--edge)}
+.steps li:first-child{border-top:0}
+.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:9px;width:21px;height:21px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.steps b{display:block;margin-bottom:2px}
+.steps p{margin:2px 0 7px;color:var(--dim)}
+.steps p em{font-style:normal;color:var(--text)}
+code{font:11px Menlo,Consolas,monospace;background:var(--field);border:1px solid var(--edge);border-radius:4px;padding:0 4px}
+.keyrow{display:flex;gap:6px}
+.keyrow input{flex:1;min-width:0;font:11.5px/1.4 Menlo,Consolas,monospace;-webkit-user-select:text;user-select:text}
+.card.key{margin:0 0 10px}
+.card.key.ok{border-color:var(--accent)}
+.banner{border:1px solid var(--accent);border-radius:8px;padding:7px 9px;margin-bottom:8px;background:var(--toast);display:flex;gap:8px;align-items:center}
+.banner span{flex:1}
+.tips{margin:6px 0;padding-left:18px}
+.tips li{margin:4px 0}
+.tips b{font-weight:600}
+table.costs{width:100%;border-collapse:collapse;margin-top:4px}
+table.costs td{padding:3px 0;border-top:1px solid var(--edge);vertical-align:top}
+table.costs td:last-child{text-align:right;color:var(--dim);white-space:nowrap;padding-left:8px}
+.msg-ok{color:var(--accent)}.msg-err{color:var(--red)}
 </style>
 </head>
 <body>
@@ -85,10 +108,74 @@ input.hex{width:86px;padding:3px 6px;font:11px/1.4 Menlo,Consolas,monospace;-web
   <svg class="mark" viewBox="105 64 1266 1368" aria-hidden="true"><path d="M1167.6 1430.5C1129.0 1424.2 1089.8 1402.6 1063.7 1373.2C1049.5 1357.2 1034.2 1330.7 1027.6 1310.5C1018.5 1282.6 1017.0 1252.9 1023.1 1221.2C1033.4 1167.7 1067.8 1123.2 1117.2 1099.2C1133.5 1091.3 1149.0 1086.4 1169.0 1082.8C1180.5 1080.8 1215.0 1081.1 1227.5 1083.4C1282.4 1093.4 1326.5 1127.2 1352.5 1179.0C1370.0 1213.9 1375.4 1255.3 1367.4 1293.8C1363.4 1313.3 1351.6 1339.7 1339.3 1356.9C1313.0 1393.5 1273.2 1419.4 1228.5 1429.0C1215.3 1431.9 1181.2 1432.7 1167.6 1430.5ZM809.5 1112.4C801.2 1111.0 789.1 1107.7 782.8 1104.9C773.1 1100.6 767.8 1097.3 751.3 1084.9C727.5 1066.9 704.9 1054.2 679.3 1044.2C591.2 1009.8 495.5 1017.9 413.5 1066.6C380.8 1086.0 354.7 1095.3 322.5 1099.1C306.9 1100.9 278.3 1099.7 263.5 1096.6C224.3 1088.3 190.3 1069.5 162.0 1040.3C139.3 1017.0 124.6 993.1 114.4 962.8C107.1 941.1 104.5 922.2 105.3 896.1C106.2 868.0 111.6 845.5 123.4 820.5C143.7 777.8 175.3 745.9 217.5 725.5C235.0 717.0 245.9 713.5 268.5 708.9C301.1 702.4 324.3 694.6 350.0 681.7C378.7 667.3 402.2 650.6 424.8 628.5C453.3 600.9 471.9 575.3 488.1 541.5C507.8 500.4 517.2 459.5 517.2 414.5C517.2 385.5 515.0 369.2 506.9 337.2C500.6 312.1 498.8 298.8 498.8 277.5C498.8 209.0 530.4 145.2 584.5 104.8C606.9 88.0 637.9 74.3 666.5 68.5C735.7 54.5 808.3 76.5 859.1 127.0C917.6 185.0 936.2 273.1 906.5 350.5C888.0 398.5 856.6 434.7 810.5 461.0C739.8 501.2 692.4 573.1 682.4 655.0C680.2 673.2 680.9 704.4 683.9 721.5C693.5 775.5 715.4 819.4 751.8 857.2C780.0 886.4 811.7 907.2 849.0 920.9C868.8 928.3 877.0 933.1 888.9 944.4C898.2 953.4 903.8 961.3 909.5 973.2C916.5 988.0 918.4 997.4 918.4 1016.5C918.4 1030.0 918.1 1033.8 916.1 1041.0C907.0 1074.8 880.1 1101.3 846.0 1110.0C837.7 1112.2 816.8 1113.5 809.5 1112.4Z"/></svg>
   <b>Alien</b>
   <select id="model" title="Model for describe-a-node"></select>
+  <button id="help" class="icon" title="Help: connect OpenRouter, getting started">?</button>
   <button id="settings" class="icon" title="Settings: theme, colours, settings file">⚙</button>
   <button id="dock" class="icon" title="Dock in Rhino">⇲</button>
   <button id="close" class="icon" title="Close the panel">✕</button>
 </header>
+
+<section id="helpView" style="display:none">
+  <div class="row" style="margin:0 0 8px"><span class="title grow">Help</span><button id="helpDone" class="go">Done</button></div>
+  <div id="keyCard" class="card key"></div>
+
+  <h3>Connect OpenRouter (about 3 minutes)</h3>
+  <div class="dim">Describing nodes, 3D objects, textures, figures and trees use AI models, reached through OpenRouter and paid
+    from your own OpenRouter credit. Everything else in Alien is free and works without it.</div>
+  <ol class="steps">
+    <li><b>Create an OpenRouter account</b>
+      <p>Sign up with Google, GitHub or an email address. It's free to create.</p>
+      <button data-url="https://openrouter.ai/sign-up">Open openrouter.ai ↗</button></li>
+    <li><b>Add some credit</b>
+      <p>Go to <em>Settings › Credits</em> and choose <em>Add credits</em>. US$5 goes a long way: a described node costs about
+        US$0.002, a 3D object about US$0.02, and a texture or drawing about US$0.03.</p>
+      <button data-url="https://openrouter.ai/settings/credits">Open Credits ↗</button></li>
+    <li><b>Create an API key</b>
+      <p>Go to <em>Settings › API Keys</em> and choose <em>Create API Key</em>. Name it “Alien”. Setting a credit limit
+        (say US$10) means a mistake can never overspend. Copy the key straight away: OpenRouter shows it only once.
+        It starts with <code>sk-or-v1-</code>.</p>
+      <button data-url="https://openrouter.ai/settings/keys">Open API Keys ↗</button></li>
+    <li><b>Paste it here and link it</b>
+      <p>Alien checks the key with OpenRouter, shows your credit, and saves it in settings.json on this computer only:
+        never in .gh files, scripts or anything you share.</p>
+      <div class="keyrow"><input id="keyInput" type="password" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false"><button id="keyLink" class="go">Link key</button></div>
+      <div id="keyMsg" class="dim" style="margin-top:6px"></div></li>
+    <li><b>Try it</b>
+      <p>Press <em>Done</em>, type “divide a curve into 20 points” in the Describe box and press Enter. A new node appears and
+        writes its own script in about 10 seconds. The menu at the top of this panel picks the model that writes nodes;
+        Claude Haiku 5.5 is the tested, low-cost default.</p></li>
+  </ol>
+  <div class="dim">Alien asks OpenRouter to use only providers that don't store or train on your prompts. Lost the key, or
+    think someone else has it? Delete it on the API Keys page and make a new one.</div>
+
+  <h3 style="margin-top:14px">Getting started</h3>
+  <ul class="tips">
+    <li><b>Place a node:</b> click one in the library below (try <em>vic_site_map</em> with a Victorian address).</li>
+    <li><b>Describe a node:</b> with nothing selected, describe a new one; with a node selected, describe a change to it.</li>
+    <li><b>Build on other nodes:</b> drag a box around two or more nodes, then describe a node that uses them: it is wired
+      to them for you.</li>
+    <li><b>Controls:</b> sliders, switches and fields sit on the node. Only <em>▶ Generate</em> buttons spend credit;
+      sliders rework what was already made, for free.</li>
+    <li><b>Generated:</b> the tab below keeps every 3D object, material and drawing the nodes made.</li>
+  </ul>
+
+  <h3 style="margin-top:12px">What costs money</h3>
+  <table class="costs">
+    <tr><td>Describing a node (Claude Haiku 5.5)</td><td>~US$0.002</td></tr>
+    <tr><td>object_3d design (Claude Sonnet 5.5)</td><td>~US$0.01–0.02</td></tr>
+    <tr><td>material_texture, scale_figure, scale_tree</td><td>~US$0.03 each</td></tr>
+    <tr><td>Site map, views, levels, grids, walls, structure…</td><td>free</td></tr>
+  </table>
+
+  <h3 style="margin-top:12px">Troubleshooting</h3>
+  <ul class="tips">
+    <li><b>“No OpenRouter key”:</b> link one above.</li>
+    <li><b>“Insufficient credits” or 402:</b> add credit on OpenRouter (step 2), or raise the key's limit.</li>
+    <li><b>401 / key not accepted:</b> the key was mistyped, deleted or expired. Make a new one (step 3) and link it.</li>
+    <li><b>A node shows an error:</b> select it and describe the fix (“the error says … fix it”), or open its code below.</li>
+    <li><b>Something else:</b> keys, models, the script folder and the agent port are in settings.json.</li>
+  </ul>
+  <div class="row"><button id="helpSettingsFile">Open settings file</button><button data-url="https://github.com/NGoochi/Alien_ID">Alien on GitHub ↗</button></div>
+</section>
 
 <section id="settingsView" style="display:none">
   <div class="row" style="margin:0 0 8px"><span class="title grow">Settings</span><button id="settingsDone" class="go">Done</button></div>
@@ -108,6 +195,7 @@ input.hex{width:86px;padding:3px 6px;font:11px/1.4 Menlo,Consolas,monospace;-web
 </section>
 
 <section id="nodeSection">
+  <div id="keyBanner" class="banner" style="display:none"><span>Describing nodes needs an OpenRouter key.</span><button data-help="1" class="go">Set it up</button></div>
   <div id="nodeHead"></div>
   <textarea id="prompt" placeholder="Describe a node…"></textarea>
   <div class="row">
@@ -142,7 +230,7 @@ const $ = id => document.getElementById(id);
 const post = (type, data) => window.eto.postMessage(JSON.stringify(Object.assign({ type }, data || {})));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let state = { node: null, library: [], categories: [], settings: {}, selection: [], theme: null, presets: [] };
-let view = 'main';
+let view = 'main', helpAuto = false, keyBusy = false;
 const COLOURS = ['background', 'text', 'accent'];
 let shownNode = null;
 let assets = [], tab = 'nodes', category = 'all', assetKind = 'all', picked = null;
@@ -157,6 +245,12 @@ window.alien = {
     applyTheme(s.theme);
     renderSettings();
     renderSettingsView();
+    renderHelp();
+    // First time the panel opens with no key: show how to get one.
+    if (!helpAuto && s.settings && !s.settings.hasKey) {
+      helpAuto = true;
+      try { if (!localStorage.getItem('alien.helpSeen')) { localStorage.setItem('alien.helpSeen', '1'); showView('help'); } } catch (e) {}
+    }
     renderNode(prevId !== (s.node && s.node.id));
     renderLibrary();
   },
@@ -164,6 +258,15 @@ window.alien = {
     assets = list || [];
     if (picked && !assets.some(a => a.kind + '/' + a.id === picked)) picked = null;
     renderAssets();
+  },
+  keyStatus(r) {
+    keyBusy = !!r.busy;
+    const m = $('keyMsg');
+    m.className = r.busy ? 'dim' : r.ok ? 'msg-ok' : 'msg-err';
+    m.textContent = r.message || '';
+    $('keyLink').disabled = keyBusy;
+    if (r.saved || r.ok) $('keyInput').value = '';
+    renderHelp();
   },
   toast(text) {
     const t = $('toast');
@@ -205,9 +308,24 @@ function applyTheme(t) {
 function showView(v) {
   view = v;
   $('settingsView').style.display = v === 'settings' ? '' : 'none';
-  $('nodeSection').style.display = v === 'settings' ? 'none' : '';
-  $('librarySection').style.display = v === 'settings' ? 'none' : '';
+  $('helpView').style.display = v === 'help' ? '' : 'none';
+  $('nodeSection').style.display = v === 'main' ? '' : 'none';
+  $('librarySection').style.display = v === 'main' ? '' : 'none';
   renderSettingsView();
+  renderHelp();
+  window.scrollTo(0, 0);
+}
+
+function renderHelp() {
+  const st = state.settings || {};
+  $('keyBanner').style.display = st.hasKey ? 'none' : '';
+  if (view !== 'help') return;
+  const card = $('keyCard');
+  card.classList.toggle('ok', !!st.hasKey);
+  setHtml(card, st.hasKey
+    ? `<b class="ok">✓ OpenRouter is linked</b><div class="dim">Key ${esc(st.keyHint || '')}</div>
+       <div class="row"><button data-key-act="testKey">Check credit</button><button data-key-act="removeKey" class="stop">Remove</button></div>`
+    : `<b>OpenRouter isn't linked yet.</b><div class="dim">Follow the steps below; the last one links your key here.</div>`);
 }
 
 function renderSettingsView() {
@@ -350,6 +468,12 @@ $('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shift
 $('send').onclick = send;
 $('stop').onclick = () => post('stop');
 $('settings').onclick = () => showView(view === 'settings' ? 'main' : 'settings');
+$('help').onclick = () => showView(view === 'help' ? 'main' : 'help');
+$('helpDone').onclick = () => showView('main');
+$('helpSettingsFile').onclick = () => post('settings');
+const linkKey = () => { const k = $('keyInput').value.trim(); if (k && !keyBusy) post('setKey', { key: k }); };
+$('keyLink').onclick = linkKey;
+$('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); linkKey(); } });
 $('settingsDone').onclick = () => showView('main');
 $('openSettingsFile').onclick = () => post('settings');
 $('resetTheme').onclick = () => sendTheme('Alien');
@@ -361,13 +485,17 @@ for (const k of COLOURS) {
     if (k !== 'background') document.documentElement.style.setProperty('--' + k, e.target.value);
     else document.documentElement.style.setProperty('--bg', e.target.value);
   });
-  $('c-' + k).addEventListener('change', () => sendTheme());
+  // Send only real changes: a field losing focus (or a page being closed) must never resend old colours.
+  const same = v => v.toLowerCase() === ((state.theme || {})[k] || '').toLowerCase();
+  $('c-' + k).addEventListener('change', e => { if (!same(e.target.value)) sendTheme(); });
   const commitHex = () => {
     const v = $('h-' + k).value.trim();
     if (!isHex(v)) { renderSettingsView(); return; }
     let hex = v.replace('#', '');
     if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
-    $('c-' + k).value = '#' + hex.toLowerCase();
+    hex = '#' + hex.toLowerCase();
+    if (same(hex)) { renderSettingsView(); return; }
+    $('c-' + k).value = hex;
     sendTheme();
   };
   $('h-' + k).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commitHex(); e.target.blur(); } });
@@ -383,9 +511,19 @@ $('tabNodes').onclick = () => setTab('nodes');
 $('tabAssets').onclick = () => setTab('assets');
 $('newNode').onclick = () => post('new', { lang: $('lang').value });
 document.body.addEventListener('click', e => {
-  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act],[data-preset]');
+  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act],[data-preset],[data-url],[data-help],[data-key-act]');
   if (!t) return;
-  if (t.dataset.preset) sendTheme(t.dataset.preset);
+  if (t.dataset.url) post('openUrl', { url: t.dataset.url });
+  else if (t.dataset.help) showView('help');
+  else if (t.dataset.keyAct) {
+    if (t.dataset.keyAct === 'removeKey' && !t.dataset.armed) {  // second click within 3 s removes
+      t.dataset.armed = '1'; t.textContent = 'Click again';
+      setTimeout(() => { delete t.dataset.armed; t.textContent = 'Remove'; }, 3000);
+      return;
+    }
+    post(t.dataset.keyAct);
+  }
+  else if (t.dataset.preset) sendTheme(t.dataset.preset);
   else if (t.dataset.cat) { category = t.dataset.cat; renderLibrary(); }
   else if (t.dataset.kind) { assetKind = t.dataset.kind; renderAssets(); }
   else if (t.dataset.asset) { picked = picked === t.dataset.asset ? null : t.dataset.asset; renderAssets(); }

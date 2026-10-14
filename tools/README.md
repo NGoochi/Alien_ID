@@ -9,9 +9,11 @@ For agents and people checking Alien changes in a real Rhino. They talk to Alien
 | `capture.py out.png '<json>'` | Saves a capture of the viewport or the Grasshopper canvas (`{"target":"canvas"}`) |
 | `click.py <node> <dx> <dy> [double]` | Simulates a click on a node, delivered to its own mouse handlers (sliders, toggles, PANEL, text fields) |
 | `panel.py '<json>'` | Sends a message to the Alien panel as if its page did (`place`, `describe`, `restore`, `dock`, `close`, `bakeAsset`, `materialAsset`, `placeAsset`, `revealAsset` with `kind` and `id`) |
-| `package.sh` | Builds the release zip: `dist/Alien-<version>.zip` with Alien.gha and the `installer/` files (see AGENTS.md, Releases) |
+| `package.sh` | Builds the release downloads in `dist/`: `Alien-<version>-Setup.exe` (Windows, NSIS: `brew install makensis`), `Alien-<version>.pkg` (macOS), the by-hand zip and a `.sha256` (see AGENTS.md, Releases) |
+| `pane_snapshot.swift <state.json> <out.png> [js] [width] [max height]` | Renders the panel page off screen in WebKit with a saved state and runs some JavaScript (`showView('help')`): checks panel changes without bringing Rhino to the front |
 | `docs_json.py [--check]` | Rewrites `docs/docs.json` (suite pins from headers, categories from `Library.cs`, MCP tools from the running server); `--check` fails on undocumented nodes or settings |
 | `panel.py --js '<script>'` | Runs JavaScript in the panel page, for page-only state: `document.getElementById('tabAssets').click()` |
+| `panel.py --state out.json` | Saves the open panel's state (for `pane_snapshot.swift`) |
 | `windows.swift` | macOS: lists Rhino's windows, for `screencapture -x -o -l <id>` of the Grasshopper window or the sidecar |
 
 ## The loop
