@@ -8,6 +8,7 @@
 # NODE_INPUTS: swing:str | "the side it opens into (in = the wall's interior)" default="in" options="in|out"
 # NODE_INPUTS: frame:float | "frame (jamb) width (m)" min=0.02 max=0.2 default=0.04
 # NODE_INPUTS: design:list[Geometry] | "a generated leaf design (e.g. object_3d parts), fitted into each leaf (optional)"
+# NODE_INPUTS: name:str | "door type name for the library (blank: from the family, size and hand)" default="", save:bool | "add this type to the Alien library" button
 # NODE_OUTPUTS: openings:list[str] | "door records", walls:list[str] | "wall records with every opening so far (wire into windows)", solids:list[Brep] | "the walls' layer solids with every opening cut", colours:list[Color] | "colour per solid"
 # NODE_OUTPUTS: parts:list[Geometry] | "frames, leaves and glass together", part_colours:list[Color] | "colour per part", frames:list[Brep], leaves:list[Geometry] | "leaves (or the fitted design)", glass:list[Brep]
 # NODE_OUTPUTS: plan:list[Curve] | "walls cut at the plan height, open at the doors", symbols:list[Curve] | "plan symbols: frame, leaf drawn open, swing arc", reflected:list[Curve] | "seen from below (reflected ceiling plan): head, frame, closed leaves", elevation:list[Curve] | "on the exterior face: outline and opening lines (dashed V points to the hinges)", info:str
@@ -19,11 +20,13 @@
 # never overlap another opening (skipped, with a note). Width and height are the hole in the wall; the frame fills it.
 # Hand is seen from the side the door opens into: left = hinges on your left. A wired design (e.g. object_3d parts)
 # is scaled into each leaf box: its width along the wall, its height up, its depth to the leaf, its front to the swing
-# side, mirrored for right-hand doors.
+# side, mirrored for right-hand doors. Save keeps the door TYPE (family, size, hand, swing, frame, design) in the
+# Alien library as a "door", drawn from the first door placed at its full height.
 import math
 import time
 
 import alien_bim as bim
+import alien_types as at
 import alien_walls as aw
 
 t0 = time.time()
@@ -83,7 +86,9 @@ def plan_rect(fr, p, q, t, z):
     return fr.poly([(p[0], p[1], z), (q[0], q[1], z), (q[0] + nx, q[1] + ny, z), (p[0] + nx, p[1] + ny, z)], True)
 
 
+first = None  # the first door's frame and parts: the library draws the type from it
 for wi, op in new:
+    k0 = (len(frames), len(leaves), len(glass))
     fr = aw.Frame(aw.wall_of(recs[wi]), op)
     w, h, f, T = fr.w, fr.h, fr.f, fr.T
     s = 1 if swing == "out" else -1          # +y is the exterior
@@ -173,6 +178,9 @@ for wi, op in new:
                 vee(x0 if hs < 0 else x1, x1 if hs < 0 else x0, 0.0, lh)
             else:
                 vee(x1 if hs < 0 else x0, x0 if hs < 0 else x1, 0.0, lh)
+    if first is None and abs(float(op["height"]) - height) < 1e-6:  # not one cut down to fit its wall
+        first = (fr, frames[k0[0]:] + leaves[k0[1]:] + glass[k0[2]:],
+                 [aw.colour(m) for m in part_mats["frames"][k0[0]:] + part_mats["leaves"][k0[1]:]] + [aw.colour("glass", 90) for _ in glass[k0[2]:]])
 
 solids, colours, _, plan, problems = aw.cut_all(recs)
 notes += problems
@@ -193,3 +201,12 @@ info = "\n".join([
     "%d opening%s cut through %d wall%s in %.0f ms%s" % (total, "" if total == 1 else "s", len(recs), "" if len(recs) == 1 else "s",
                                                        (time.time() - t0) * 1000, "; leaves from the wired design (%d parts)" % len(geoms) if geoms else ""),
 ] + notes)
+
+if save:  # the button: keep this door type in the library
+    rec = at.opening_type("door", name, fam, width, height, hand, swing, fw, geoms)
+    if first is None:
+        info += "\nnot saved: no door was placed at its full height to draw the type from"
+    else:
+        at.save_opening("door", rec, first[0], first[1], first[2], {"family": fam, "width": width, "height": height,
+                        "hand": hand, "swing": swing, "frame": fw, "name": str(name or "").strip()}, "doors")
+        info += "\nsaved to the library as %s" % rec["name"] + (" (with the wired design)" if geoms else "")

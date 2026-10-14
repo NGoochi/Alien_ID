@@ -38,6 +38,17 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
 - **The Alien node:** the Alien mark and the script name, a PY / C# badge, its state (ok / error / running), and the
   error itself on the node when a run fails. The selected node glows.
+- **Project agent:** a chat in the panel that knows the whole canvas and remembers the project (per Grasshopper file).
+  Ask "what could I build next?", "set up levels and grids for three storeys", "look at the viewport": it searches the
+  library first and suggests or places existing nodes, has describe-a-node write new ones, wires, sets inputs, tests,
+  fixes, deletes and captures the viewport to check its work. It never spends your credit on Generate buttons unless
+  you ask, and everything it changes can be undone (Cmd/Ctrl+Z).
+- **Pick geometry in Rhino:** an unwired geometry input (curve, surface, Brep, mesh, point…) shows **Select in Rhino**:
+  click it and pick objects in the viewport (or select them first). The node keeps the references and re-solves when
+  you move or edit them.
+- **Suite nodes on the toolbar:** every suite node has its own button on Grasshopper's Alien tab, in panels Create,
+  Site, Building, Views, Entourage and Data, and the panel's library opens with **Start here**: blank node, 3D object,
+  2D object, symbol, material, display mode, views, layout, exploded axo.
 - **Themes:** pick a preset (Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark/Light,
   High Contrast, Light, GitHub Light) or your own background, text and accent colours in the panel's settings (⚙).
   Nodes, the canvas text box and the panel all follow it.
@@ -60,12 +71,14 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   - **Help (?)**: step by step, create an OpenRouter account, add credit, make a key and link it (Alien checks the key
     with OpenRouter and shows your credit), plus getting started, costs and troubleshooting. It opens by itself the
     first time if no key is linked
-  - place nodes from the library, sorted into categories (Site & context, Building elements, Massing & objects, Entourage, Materials,
+  - place nodes from the library, sorted into categories (Create, Site & context, Building elements, Massing & objects, Entourage, Materials,
     Views & drawings, Data & lists, Geometry, Analysis, Utilities). A node's category comes from its `# CATEGORY:`
     line; nodes without one are sorted by the model once (cached in `.alien/library.json`), with a keyword guess until
     then
-  - browse what the nodes generated (3D objects, materials, drawings) in the **Generated** tab, with thumbnails: bake
-    an object as a block, add a texture as a real-size material, or place the node that made it
+  - browse the **Objects** library, with thumbnails: what the generators made (3D and 2D objects, symbols, materials,
+    display modes, drawings) and the building types saved by type nodes (wall, slab, roof, stair and balustrade types,
+    doors, windows, section profiles). Bake an object or symbol as a block, add a texture as a real-size material,
+    place the node that made it (with the same inputs), or copy a type's record
 - **Describe-a-node:** the request, the current script and the wired inputs go to a model, which writes the whole
   script. Alien runs it, and any error (Python traceback, C# compiler message) goes back to the model to fix, up to 4
   attempts. The default is Claude Haiku 5.5 through OpenRouter; any OpenRouter model, or a local Ollama model, also
@@ -78,17 +91,23 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   | `vic_site_map` | A Victorian address (suggested as you type) becomes the lot, neighbouring lots, roads, terrain and contours, 3D streets (carriageway, kerbs, footpaths, nature strips), trees, building massing on the ground, zone and overlays (Vicmap, Geoscience Australia, Overture Maps) |
   | `site_views` | Plan, site plan, X/Y centreline sections and four elevations around the site as Rhino named views (sections clipped), and an optional layout sheet at standard scales |
   | `object_3d` | Describe a thing ("a dining chair"), or give a picture, and a model writes the code that builds it from solids at real size |
+  | `object_2d`, `symbol` | A model draws flat things at real size (a car or bed in plan, a person in elevation) or annotation symbols at paper size (north arrows, section and level markers, scale bars) with text slots and Rhino blocks |
+  | `display_mode` | Describe a look ("white clay with soft shadows", "blueprint") or show a picture, and get a Rhino display mode |
   | `material_texture` | A finish ("board-formed concrete") becomes a seamless texture and a Rhino material at real-world scale |
   | `bim_site`, `levels`, `grids` | The building suite's base: a site record (origin, grid rotation, north, AHD datum, drawing scale), named levels with RLs, level lines and heads, and BIM-style grids with bubbles, intersections and dimensions |
   | `wall_types`, `walls`, `doors`, `windows` | Layered walls from Australian build-ups along any curve, joined at corners, with hosted doors and windows cut through them, plan and elevation symbols (swings, opening leaves), and generated designs fitted into leaves |
   | `curtain_wall` | Mullions, transoms and glass along straight, curved or closed paths between levels, in box, I, T, round, fin or flat bar profiles, with optional trusses |
+  | `slab_types`, `slabs`, `roof_types`, `roofs` | Layered slabs at levels with openings (stair voids), and hip, gable, dutch gable, skillion or flat roofs over any simple outline (straight skeleton) with fascias, gutters and a roof plan |
+  | `stair_types`, `stairs`, `balustrade_types`, `balustrades` | Straight, L, U or spiral stairs fitted between levels with first-pass Australian NCC checks, plans, floor voids, and balustrades (glass, bars, rails, wires, timber) along stair and slab edges |
+  | `section_profile` | A section from the Australian catalogue or a custom shape, with computed properties and a dimensioned drawing, usable as a beam or column section |
+  | `views`, `layout`, `exploded_axo` | Named plans, RCPs, sections, elevations and axonometrics of any geometry; layout sheets with views at standard scales and a title block; exploded axonometrics with explosion lines and labels |
   | `beams_columns`, `structure_edit`, `connectors` | A steel, timber or concrete frame on the grids from real Australian sections, edited by pattern ("B-L02-*: section=460UB67.1"), with base plates, splices, end and fin plates, bolts and a schedule |
   | `branch_picker` | Passes chosen branches of a data tree through |
   | `scale_figure`, `scale_tree` | An image model draws a person or tree, traced into true-size outlines, fills and hatches for elevations and plans |
 
   Every node that calls a model has a **Generate** button: only that spends credits. Sliders rework the cached result.
-  The building nodes pass elements as JSON records (levels, grids, walls, members) and chain by pin name; see
-  [suite/README.md](suite/README.md#building-suite-bim_site-levels-grids-walls-doors-windows-curtain_wall-structure).
+  The building nodes pass elements as JSON records (levels, grids, walls, slabs, members) and chain by pin name; type
+  nodes save their types to the Objects library. See [suite/README.md](suite/README.md).
 
 - **MCP server** (`http://127.0.0.1:9876/mcp`): agents such as Claude Code or Cursor can place and wire nodes, edit
   scripts, inspect data, capture the viewport and drive Rhino, while you watch.
@@ -135,6 +154,8 @@ Requirements:
 | `classifyModel`, `classify` | Model that sorts uncategorised library nodes (default: `model`); `"classify": "off"` uses keywords only |
 | `ollamaUrl`, `reasoning` | Local model server; reasoning effort (default `low`, and `none` for local models) |
 | `panel` | `"rhino"` docks the panel in Rhino instead of beside Grasshopper |
+| `agentModel` | The project agent's model (default `anthropic/claude-sonnet-5.5`; it needs tool calling) |
+| `model2d`, `modelDisplay` | The models for `object_2d`/`symbol` and `display_mode` (default Claude Sonnet 5.5) |
 | `theme` | Written by the panel's settings: `{"preset", "background", "text", "accent"}` (absent = the Alien preset) |
 
 ## Using it
@@ -144,6 +165,10 @@ Requirements:
 - **Build on what's there:** drag a box around two or more nodes (say `levels` and `grids`), then describe a node that
   uses them ("a floor slab at every level inside the grid"). The new node appears beside them, already wired. With
   one Alien node selected, tick *Build a new node from this one* to do the same instead of changing it.
+- **Ask the project agent:** switch the panel to *Project agent* and ask in plain words. It sees the canvas, remembers
+  the project (ask it to "remember" facts), and shows each step it takes (placing, wiring, checking, looking at the
+  viewport). About US$0.03–0.15 a request with Claude Sonnet 5.5; Stop cancels; Cmd/Ctrl+Z undoes its changes.
+- **Pick geometry:** click *Select in Rhino* on a node and pick objects in the viewport; × clears.
 - **Try values:** drag the sliders, flip the switches, type in the fields. A fast script follows a slider live; a slow
   one (network, heavy geometry) runs when you let go.
 - **Right-click a node** for these sections:

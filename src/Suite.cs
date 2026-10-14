@@ -62,6 +62,13 @@ namespace Alien
             return written;
         }
 
+        /// <summary>The one-line description of an embedded suite node ("object_3d"), or null.</summary>
+        public static string Description(string node)
+        {
+            try { return Files.Contains(node + ".py") ? Ui.ScriptInfo.Description(Read(node + ".py")) : null; }
+            catch { return null; }
+        }
+
         private static string Read(string name)
         {
             using var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(Prefix + name);

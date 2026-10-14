@@ -9,6 +9,7 @@
 # NODE_INPUTS: swing:str | "the side sashes open into" default="out" options="in|out"
 # NODE_INPUTS: frame:float | "frame width (m)" min=0.02 max=0.2 default=0.05
 # NODE_INPUTS: design:list[Geometry] | "a generated sash design (e.g. object_3d parts), fitted into each sash (optional)"
+# NODE_INPUTS: name:str | "window type name for the library (blank: from the family, size and hand)" default="", save:bool | "add this type to the Alien library" button
 # NODE_OUTPUTS: openings:list[str] | "window records", walls:list[str] | "wall records with every opening so far", solids:list[Brep] | "the walls' layer solids with every opening cut", colours:list[Color] | "colour per solid"
 # NODE_OUTPUTS: parts:list[Geometry] | "frames, sashes and glass together", part_colours:list[Color] | "colour per part", frames:list[Brep], sashes:list[Geometry] | "sashes (or the fitted design)", glass:list[Brep]
 # NODE_OUTPUTS: plan:list[Curve] | "walls cut at the plan height, open at the windows", symbols:list[Curve] | "plan symbols: frame and sashes (the opening dashed when above the cut)", reflected:list[Curve] | "seen from below (reflected ceiling plan): head, frame, sashes", elevation:list[Curve] | "on the exterior face: outline, sashes and opening lines (dashed V points to the hinges)", info:str
@@ -21,10 +22,13 @@
 # door. Width and height are the hole in the wall; the frame (centred in the wall, up to 110 mm deep) fills it.
 # Elevation marks follow the usual convention: dashed lines meet at the hinged side (casement: the hand side, awning:
 # top, hopper: bottom); sliding and double hung get arrows. A wired design is scaled into each sash, front outwards.
+# Save keeps the window TYPE (family, size, sill, hand, swing, frame, design) in the Alien library as a "window", drawn
+# from the first window placed at its full height.
 import math
 import time
 
 import alien_bim as bim
+import alien_types as at
 import alien_walls as aw
 
 t0 = time.time()
@@ -70,7 +74,9 @@ def sash(fr, x0, x1, y0, y1, z0, z1):
     pane(fr, x0 + sw, x1 - sw, (y0 + y1) / 2.0, z0 + sw, z1 - sw)
 
 
+first = None  # the first window's frame and parts: the library draws the type from it
 for wi, op in new:
+    k0 = (len(frames), len(sashes), len(glass))
     fr = aw.Frame(aw.wall_of(recs[wi]), op)
     w, h, f, T = fr.w, fr.h, fr.f, fr.T
     s = 1 if swing == "out" else -1
@@ -148,6 +154,9 @@ for wi, op in new:
             symbols.append(fr.line((-xi, yy, z), (xi, yy, z)))
         for x0, x1, y0, y1 in boxes:
             symbols.append(fr.rect_plan(x0, x1, y0, y1, z))
+    if first is None and abs(float(op["height"]) - height) < 1e-6:  # not one cut down to fit its wall
+        first = (fr, frames[k0[0]:] + sashes[k0[1]:] + glass[k0[2]:],
+                 [aw.colour("aluminium") for _ in frames[k0[0]:]] + [aw.colour(m) for m in sash_mats[k0[1]:]] + [aw.colour("glass", 90) for _ in glass[k0[2]:]])
 
 solids, colours, _, plan, problems = aw.cut_all(recs)
 notes += problems
@@ -170,3 +179,12 @@ info = "\n".join([
     "%d opening%s cut through %d wall%s in %.0f ms%s" % (total, "" if total == 1 else "s", len(recs), "" if len(recs) == 1 else "s",
                                                        (time.time() - t0) * 1000, "; sashes from the wired design (%d parts)" % len(geoms) if geoms else ""),
 ] + notes)
+
+if save:  # the button: keep this window type in the library
+    rec = at.opening_type("window", name, fam, width, height, hand, swing, fw, geoms, sill)
+    if first is None:
+        info += "\nnot saved: no window was placed at its full height to draw the type from"
+    else:
+        at.save_opening("window", rec, first[0], first[1], first[2], {"family": fam, "width": width, "height": height,
+                        "sill": sill, "hand": hand, "swing": swing, "frame": fw, "name": str(name or "").strip()}, "windows")
+        info += "\nsaved to the library as %s" % rec["name"] + (" (with the wired design)" if geoms else "")

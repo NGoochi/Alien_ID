@@ -3,10 +3,14 @@ Building-suite chain test. Places every building node in a clear area of the ope
 way a project would, and checks the lot:
 
   bim_site -> levels, grids -> wall_types -> walls -> doors -> windows
-           -> beams_columns -> structure_edit -> connectors
+           -> beams_columns -> structure_edit -> connectors (section_profile -> beam)
            -> curtain_wall
+           -> slab_types -> slabs (stairs.voids -> openings), roof_types -> roofs
+           -> stair_types -> stairs -> balustrades (stairs.edges -> path), balustrade_types
+  roofs -> views, slabs -> exploded_axo
 
-Wires join an output to a downstream input of the same name (site, levels, grids, wall_type, walls, members). Then
+Wires join an output to a downstream input of the same name (site, levels, grids, wall_type, walls, members), plus
+the few handoffs with different names (LINKS). Then
 every node must have solved without an error or unset outputs, every Brep it outputs must be valid (and closed, except
 outputs named like surfaces), and each node's run time is reported. Rhino + Grasshopper open, Alien loaded.
 
@@ -23,12 +27,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from mcp import call  # noqa: E402
 
 NODES = ["bim_site", "levels", "grids", "wall_types", "walls", "doors", "windows",
-         "beams_columns", "structure_edit", "connectors", "curtain_wall"]
+         "beams_columns", "structure_edit", "connectors", "curtain_wall",
+         "slab_types", "slabs", "roof_types", "roofs", "stair_types", "stairs", "balustrade_types", "balustrades",
+         "section_profile", "views", "exploded_axo"]
 EDGES = [("bim_site", "levels"), ("bim_site", "grids"), ("bim_site", "walls"), ("bim_site", "beams_columns"),
          ("bim_site", "curtain_wall"), ("levels", "walls"), ("levels", "beams_columns"), ("levels", "curtain_wall"),
          ("levels", "doors"), ("levels", "windows"), ("grids", "beams_columns"), ("wall_types", "walls"),
-         ("walls", "doors"), ("doors", "windows"), ("beams_columns", "structure_edit"), ("structure_edit", "connectors")]
-OPEN_OK = ("surface", "panel", "face", "swatch_faces")  # outputs allowed to hold open Breps
+         ("walls", "doors"), ("doors", "windows"), ("beams_columns", "structure_edit"), ("structure_edit", "connectors"),
+         ("bim_site", "slabs"), ("bim_site", "roofs"), ("bim_site", "stairs"), ("bim_site", "balustrades"),
+         ("levels", "slabs"), ("levels", "roofs"), ("levels", "stairs"), ("levels", "balustrades"),
+         ("slab_types", "slabs"), ("roof_types", "roofs"), ("stair_types", "stairs"), ("balustrade_types", "balustrades")]
+# Pins with different names: (from node, output, to node, input)
+LINKS = [("stairs", "voids", "slabs", "openings"), ("stairs", "edges", "balustrades", "path"),
+         ("section_profile", "profile", "beams_columns", "beam"), ("roofs", "solids", "views", "geometry"),
+         ("slabs", "solids", "exploded_axo", "geometry")]
+OPEN_OK = ("surface", "panel", "face", "swatch_faces", "fill")  # outputs allowed to hold open Breps (flat previews)
 X0, Y0 = 3200, 1200  # canvas area for the rig
 
 CHECK = r'''
@@ -90,6 +103,9 @@ def main():
         if a in ids and b in ids:
             for name in sorted(pins[a][1] & pins[b][0]):
                 links.append("%s.%s>%s.%s" % (ids[a], name, ids[b], name))
+    for a, out, b, inp in LINKS:
+        if a in ids and b in ids and out in pins[a][1] and inp in pins[b][0]:
+            links.append("%s.%s>%s.%s" % (ids[a], out, ids[b], inp))
     if links:
         tool("wire", {"links": links})
     for n, vals in values.items():

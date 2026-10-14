@@ -40,6 +40,8 @@ namespace Alien
 
         public static readonly Category[] Categories =
         {
+            new Category("create", "Create", "generators: describe something (or show a picture) and a model makes it: 3D objects, 2D drawings, symbols, display modes",
+                "generate generator create object objects 3d 2d symbol symbols drawing display mode look style describe prompt"),
             new Category("site", "Site & context", "maps, parcels, terrain, roads, planning data around a site",
                 "site map address parcel lot cadastre cadastral zone zoning overlay terrain topography topo contour gis street road osm vicmap survey context planning setback"),
             new Category("building", "Building elements", "BIM-style elements: site base, levels, grids, walls, doors, windows, curtain walls, beams, columns, connections",
@@ -148,6 +150,31 @@ namespace Alien
             }
             if (pending.Count > 0) ClassifyLater(pending);
             return arr;
+        }
+
+        /// <summary>
+        /// The base nodes, pinned at the top of the library whatever the search: the things people start from. Each is a
+        /// suite node (or a blank node); missing ones are left out.
+        /// </summary>
+        public static readonly (string script, string label, string glyph, string hint)[] Essentials =
+        {
+            (null, "Blank node", "+", "Describe what it should do and a model writes it"),
+            ("suite/object_3d.py", "3D object", "3D", "Describe a thing (or show a picture): a model builds it in 3D"),
+            ("suite/object_2d.py", "2D object", "2D", "Plan symbols, furniture, cars, trees: real-size linework"),
+            ("suite/symbol.py", "Symbol", "Sy", "North arrows, section markers, tags at drawing scale"),
+            ("suite/material_texture.py", "Material", "Mt", "A finish becomes a seamless texture and a render material"),
+            ("suite/display_mode.py", "Display mode", "Dm", "Describe a look (or show one) and get a Rhino display mode"),
+            ("suite/views.py", "Views", "Vw", "Plans, sections, elevations and axonometrics of any geometry"),
+            ("suite/layout.py", "Layout", "Lo", "Sheets with views at scale and a title block"),
+            ("suite/exploded_axo.py", "Exploded axo", "Ax", "Pull parts apart into an exploded axonometric"),
+        };
+
+        public static JArray EssentialsList()
+        {
+            var root = ScriptRepository.Root;
+            return new JArray(Essentials
+                .Where(e => e.script == null || (root != null && File.Exists(System.IO.Path.Combine(root, e.script))))
+                .Select(e => new JObject { ["path"] = e.script, ["label"] = e.label, ["glyph"] = e.glyph, ["hint"] = e.hint }));
         }
 
         public static JArray CategoryList() =>

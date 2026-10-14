@@ -1,7 +1,7 @@
 # NODE_INPUTS: members:list[object] | "member records (from beams_columns or another structure_edit); a sample frame when unwired"
 # NODE_INPUTS: select:str | "members to edit: ids with * wildcards (C-A/*, B-L02-*) and/or filters level=L02 grid=A role=beam section=310UC* material=steel; blank = none, * = all" default=""
 # NODE_INPUTS: action:str | "what to do to the selection" default="resize" options="resize|move|rotate|remove|extend"
-# NODE_INPUTS: section:str | "resize to: a section name (460UB67.1, SHS 200x9, GL18 450x135), or up / down a size" default="", offset:str | "move by: dx, dy, dz (m)" default="0, 0, 0"
+# NODE_INPUTS: section:str | "resize to: a section name (460UB67.1, SHS 200x9, GL18 450x135), a profile record from section_profile, or up / down a size" default="", offset:str | "move by: dx, dy, dz (m)" default="0, 0, 0"
 # NODE_INPUTS: rotation:float | "rotate by (degrees) about each member's own axis" min=-180 max=180 default=0, extend:float | "extend both ends by (m); negative shortens" min=-3 max=3 default=0
 # NODE_INPUTS: edits:list[str] | "more edits, one per line, in order: 'B-L02-*: section=460UB67.1', 'C-B/2-*: remove', 'level=RF role=beam: move=0,0,0.1 rotate=5', 'C-A/1-GF: extend=0.5,0'"
 # NODE_OUTPUTS: members:list[str] | "member records, ids kept (wire into connectors)", solids:list[Brep] | "every member, in member order", columns:list[Brep], beams:list[Brep]
@@ -163,6 +163,14 @@ def do_extend(r, a, b):
     return None
 
 
+def _short(v):
+    """A profile record shows as its name in the steps."""
+    if isinstance(v, str) and v.lstrip().startswith("{"):
+        spec, _ = S.parse(v)
+        return (spec or {}).get("name") or "a profile record"
+    return v
+
+
 def apply(pattern, ops, label):
     picked = pick(pattern)
     if not picked:
@@ -187,7 +195,7 @@ def apply(pattern, ops, label):
             m = do_extend(r, *ops["extend"])
             if m:
                 msgs.append(m)
-    what = ", ".join("%s=%s" % (k, v if not isinstance(v, (list, tuple)) else ",".join("%g" % x for x in v))
+    what = ", ".join("%s=%s" % (k, _short(v) if not isinstance(v, (list, tuple)) else ",".join("%g" % x for x in v))
                      for k, v in ops.items() if k != "remove") or "remove"
     steps.append("%s: %s -> %d member%s" % (pattern, what, len(picked), "" if len(picked) == 1 else "s"))
     for m in sorted(set(msgs))[:6]:

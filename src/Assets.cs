@@ -71,6 +71,7 @@ namespace Alien
                     ["materials"] = m["materials"],
                     ["hasGeometry"] = files?["geometry"] != null,
                     ["hasTexture"] = files?["texture"] != null,
+                    ["hasRecord"] = files?["record"] != null,
                     ["canPlace"] = m["inputs"] is JObject && m.Value<string>("node") != null,
                     ["thumb"] = Thumb(Path.Combine(dir, "thumb.png")),
                 });

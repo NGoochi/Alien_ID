@@ -28,15 +28,19 @@ First 200 lines. Python uses `#`, C# uses `//`. Several `NODE_INPUTS` lines are 
   writing to the Rhino document), so re-solving never repeats it. Agents press it with `set_values {"go": true}`.
 - `str` with the word `image` (`ref:str | "reference" image`) takes an image dropped on the node (its path) or a pasted
   link, and shows a thumbnail. `str` with `suggest="vic-address"` suggests Victorian addresses while typing.
+- Unwired geometry inputs (`Curve`, `Brep`, `Surface`, `Mesh`, `SubD`, `Geometry`, `Line`, `Circle`, `Arc`,
+  `Rectangle3d`, `Box`, and lists of them; a single `Point3d` is a clicked location) get a **Select in Rhino** control:
+  the user picks objects in the viewport, and the node keeps references, so it re-solves when those objects move or
+  change. Agents set the same with `set_values {"path": {"pick": ["<rhino object id>", ...]}}` (ids from `objects`).
 - Never put a value a slider or toggle changes into a model prompt or a cache key: key paid results on the request
   (text, choices, variant) and apply sizes, detail and placement to the cached result.
 - Access: `list[T]` / `T[]` / `T:list` → list; `tree[T]` → tree (arrives as a list of branch lists); default item.
 - `default=` accepts numbers, `true/false`, `"text"`, `[x,y,z]`.
 - Names are pin identities: renaming a pin drops its wires. Keep names stable.
 - Outputs are generic; a type after `:` is documentation only.
-- After the header: `# CATEGORY: Geometry` (library group: Site & context, Building elements, Massing & objects,
+- After the header: `# CATEGORY: Geometry` (library group: Create, Site & context, Building elements, Massing & objects,
   Entourage, Materials, Views & drawings, Data & lists, Geometry, Analysis, Utilities), then one comment line saying
-  what the node does (the library listing). Without a CATEGORY line the library sorts the node itself (model, else keywords).
+  what the node does (the library listing). Create is for generators (a model makes a 3D/2D object, symbol, display mode). Without a CATEGORY line the library sorts the node itself (model, else keywords).
 
 ## Types
 `float int bool str Color Interval Point3d Vector3d Plane Line Circle Arc Box Rectangle3d Curve Surface Brep Mesh SubD Geometry Transform object`
@@ -119,11 +123,16 @@ Rhino: doc · objects · layers · view · capture · rhino · run_code. Referen
 
 ## Building records
 The building suite (`bim_site`, `levels`, `grids`, `wall_types`, `walls`, `doors`, `windows`, `curtain_wall`,
-`beams_columns`, `structure_edit`, `connectors`) passes elements between nodes as JSON text, one record per element:
+`slab_types`, `slabs`, `roof_types`, `roofs`, `stair_types`, `stairs`, `balustrade_types`, `balustrades`,
+`beams_columns`, `structure_edit`, `connectors`, `section_profile`) passes elements between nodes as JSON text, one
+record per element:
 `{"alien": "level", "name": "Level 1", "code": "L01", "elevation": 3.2, ...}`. Lengths are metres in world coordinates;
 geometry pins are in model units. Read records with `json.loads` (suite nodes use `alien_bim.read()`, which also
-takes lists and dicts). Kinds: site, level, grid, wall_type, wall, opening, member, joint, curtain_wall; the fields
-are listed at the top of `suite/alien_bim.py`. Record inputs are typed `object` (no control on the node).
+takes lists and dicts). Kinds: site, level, grid, wall_type, wall, opening, member, joint, curtain_wall,
+curtain_panel, slab_type, slab, roof_type, roof, stair_type, stair, balustrade_type, balustrade, profile, door_type,
+window_type; the fields are listed at the top of `suite/alien_bim.py` and the helper modules it names. Record inputs
+are typed `object` (no control on the node). Handoffs with different pin names: `stairs.voids` -> `slabs.openings`,
+`stairs.edges` or `slabs.edges` -> `balustrades.path`, `section_profile.profile` -> `beams_columns.beam`/`column`.
 
 ## Rhino
 - `doc()` first: file, units, tolerance, counts, selection, active view, Grasshopper state, versions.

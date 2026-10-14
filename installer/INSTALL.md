@@ -82,6 +82,9 @@ Only steps that call a model cost anything, and they're paid to OpenRouter from 
 | Describe-a-node (Claude Haiku 5.5) | about US$0.002 per node |
 | `object_3d` (Claude Sonnet 5.5) | about US$0.01–0.02 per design |
 | `material_texture`, `scale_figure`, `scale_tree` | about US$0.03 per image |
+| `object_2d`, `symbol` (Claude Sonnet 5.5) | about US$0.01–0.02 per design |
+| `display_mode` | about US$0.005 per look |
+| The project agent (Claude Sonnet 5.5) | about US$0.03–0.15 per request (more when it looks at the viewport) |
 | `vic_site_map`, `site_views`, `branch_picker`, the building suite (`bim_site`, `levels`, `grids`, walls, openings, curtain walls, structure) | free |
 
 The AI nodes only call a model when you press their **Generate** button. Everything they make is cached, so moving

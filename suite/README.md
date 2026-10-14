@@ -21,6 +21,21 @@ unedited copies up to date (`.alien/suite.json` records what was installed; edit
 | `beams_columns.py` | Building elements | A structural frame on the grids: columns at intersections (all, perimeter, or a skip list) one per storey, beams along the grids at each level, in Australian steel (UB, UC, PFC, SHS, RHS, CHS, EA), glulam, LVL or concrete; beams trimmed to the faces they meet; member records, tonnage |
 | `structure_edit.py` | Building elements | Edits a frame: resize (a name or up/down a size), move, rotate, remove or extend members picked by id wildcards (`B-L02-*`) or filters (`level=L02 role=beam`), several edits at once; ids kept, framing beams re-trimmed |
 | `connectors.py` | Building elements | Connections found from the members: base plates and anchors, cap plates, column splices, end plates, fin plates, cleats, bolts (M16/M20/M24), optional welds; joint records and a schedule ("BP A/1 GF: PL 505x508x25, 4 M24 anchors") |
+| `slab_types.py` | Building elements | A floor build-up: presets (concrete 200, post-tensioned 250, hollowcore 200 + topping, CLT 180 + screed, timber joist floor, waffle 300, steel deck composite 150, slab on ground) or layers top → bottom in mm (`screed 50; CLT 180*; plasterboard ceiling 13`); finish on top, soffit below; swatch; Save to the library |
+| `slabs.py` | Building elements | Layered slabs at chosen levels ("floors" = all but the top, "all", "suspended", indices, names) from closed outlines: edge offset, setdown, a type per level; openings cut at their own level (stair voids) or through every slab; notches; slab records, solids, edges for balustrades, plan with void crosses, net areas |
+| `roof_types.py` | Building elements | A roof build-up: metal deck, low-pitch deck, concrete or terracotta tile, slate, membrane on concrete, green roof, or custom layers; the pitch range the covering allows and a roofing colour; Save to the library |
+| `roofs.py` | Building elements | Hip, gable, dutch gable, skillion or flat roofs over any simple outline (L, T, U, concave via a straight skeleton) on a level: eaves and verge overhangs, ridge direction, layered solids, fascias, barges, gutters; ridges, hips, valleys, eaves; a roof plan with fall arrows; faces with pitch, aspect and area |
+| `stair_types.py` | Building elements | How a stair is built (concrete in-situ, precast, steel stringers, timber), riser and going targets, treads, nosings, waist, stringers, open or closed risers, public or private NCC limits checked; swatch and section; Save to the library |
+| `stairs.py` | Building elements | Straight, L, U or spiral stairs between two levels from a base line: risers fitted to the height, landings past 18 risers, first-pass NCC checks per rule; solids, a plan (UP arrow, cut line, dashed above), balustrade edges on the nosing line, and the upper-floor void for `slabs.openings` |
+| `balustrade_types.py` | Building elements | Frameless glass, glass and posts, vertical bars, horizontal rails, wires, solid sheet or timber; heights on floors and above the nosing line, posts, gaps, handrail; NCC barrier checks; Save to the library |
+| `balustrades.py` | Building elements | Balustrades along slab edges, stair edges or any curve, following their slope or set on a level: posts at corners and spacing, infill, handrails, plan and elevation linework, first-pass NCC checks (heights, 125 mm gaps, climbable rails) |
+| `section_profile.py` | Building elements | A structural section from the Australian catalogue (UB, UC, PFC, SHS, RHS, CHS, EA, UA, glulam, LVL, sawn, concrete) or a custom shape: a profile record (area, Ix, Iy, Zx, Zy, r) that beams_columns and structure_edit take as a section, a dimensioned section drawing and hatch, a 1 m sample; Save to the library |
+| `object_2d.py` | Create | Describe a flat thing (a car or furniture in plan, a person in elevation, a tree canopy) or give a picture; press Generate and a model draws lines, fills and hatches at real size; width/depth resize the cached design free; saved to the library as a 2D object |
+| `symbol.py` | Create | Annotation symbols (north arrow, section or level marker, tag, scale bar, logo) drawn by a model at paper size with text slots ("A \| A201"), placed at points and scaled by the drawing scale (north arrows follow the site's north); `block` makes a Rhino block; saved to the library |
+| `display_mode.py` | Create | Describe a look ("white clay with soft shadows", "blueprint") or give a reference image; the model returns a checked JSON look; `install` creates or updates the Rhino display mode "Alien · <name>" from a built-in base (never changing built-in modes); `apply` shows it; saved to the library |
+| `views.py` | Views & drawings | Named views of any geometry (or a layer): plans and RCPs per level, elevations, X/Y or wired sections (lettered, with plan marks), isometrics and a perspective, framed with a margin, in a display mode; `make` replaces the views and clipping planes made with the same prefix |
+| `layout.py` | Views & drawings | Named views on A4–A0 sheets as locked details at the largest standard scale that fits (or one or a forced scale), auto grid, one per sheet or rows; view titles with scales and a title block; `make` replaces the sheets made with the same prefix |
+| `exploded_axo.py` | Views & drawings | Pulls geometry apart by branch, part or height band (stacked, along a vector or radially), with dashed explosion lines and labels; `view` saves a parallel isometric named view framing the result |
 | `branch_picker.py` | Data & lists | Pass chosen branches of a data tree through: `0, 2, 4-6`, `-1`, `*`, `even`/`odd`, in the order given; the rest go out of `rest`; `branches` lists every branch with its size and contents |
 | `scale_figure.py` | Entourage | A person as a true-height silhouette for elevations and sections: `who` ("a woman pushing a pram"), `height`, `view` (side, front, back, three-quarter); outline curves, planar fill, solid hatch |
 | `scale_tree.py` | Entourage | A tree silhouette at true size: `species`, `height`, `view` elevation or plan (`spread` = canopy width); canopy gaps kept as holes |
@@ -30,12 +45,17 @@ unedited copies up to date (`.alien/suite.json` records what was installed; edit
 | `alien_vicdata.py` | – | Helper for `vic_site_map`: terrain, trees and street cross-sections from open data |
 | `alien_bim.py` | – | Helper for the building suite: records (JSON between nodes), units, site plane, levels and grids lookup with samples, grid intersections, text as curves, material colours, section profiles and member solids |
 | `alien_walls.py` | – | Helper for the wall nodes: wall types, wall solids rebuilt from records, joins, opening placement and cutting, symbols |
-| `alien_sections.py` | – | Helper for the structure nodes: Australian steel, timber and concrete sections by name, with sizes and kg/m |
+| `alien_sections.py` | – | Helper for the structure nodes: Australian steel, timber and concrete sections by name (or a profile record), with sizes and kg/m |
+| `alien_envelope.py` | – | Helper for slabs and roofs: slab and roof types, slab regions with openings, the weighted straight skeleton for hip and gable roofs, layered roof solids, fascias and gutters |
+| `alien_stairs.py` | – | Helper for stairs and balustrades: NCC limit tables and checks, stair and balustrade types, flight, landing and spiral solids, balustrades along polylines |
+| `alien_types.py` | – | Helper for door and window types: the record, the parts moved home, saving to the library |
+| `alien_codegen.py` | – | Helper for the generators (object_2d, symbol, display_mode): the model loop with retries, running model-written code with only rg and math, caches, the 2D drawing model, text slots, thumbnails |
+| `alien_views.py` | – | Helper for views, layout and exploded_axo: the registry and tags for named views, clipping planes and layout pages, saving views through the Perspective viewport, plane cuts, isometric directions |
 
 Helpers are not nodes; keep them in the same folder as the nodes that import them. All nodes take sizes in metres and
 scale them to the model's units. The line after the header, `# CATEGORY: ...`, places a node in the panel's library.
 
-## Building suite (bim_site, levels, grids, walls, doors, windows, curtain_wall, structure)
+## Building suite (bim_site, levels, grids, walls, doors, windows, curtain_wall, slabs, roofs, stairs, balustrades, structure)
 
 Built 2026-10-13 as a first pass at BIM-style modelling. The nodes pass elements as **records**: JSON text, one per
 element (`{"alien": "level", "name": "Level 1", "code": "L01", "elevation": 3.2, ...}`), so any node, a native panel or
@@ -55,9 +75,19 @@ beams_columns.members ─> structure_edit.members ─> connectors.members
   valid and closed, and the timings (2026-10-13: 11 nodes, 13 wires, all ok, about 3 s for the whole solve).
 - Selecting `levels` and `grids` and describing "a floor slab at every level" in the panel builds a new node already
   wired to both (it reads the records with `json.loads`).
+- **Slabs, roofs, stairs, balustrades (2026-10-14):** `levels` -> `slabs` (`slab_types`), `roofs` (`roof_types`),
+  `stairs` (`stair_types`) -> `balustrades` (`balustrade_types`); wire `stairs.voids` into `slabs.openings` and
+  `stairs.edges` (or `slabs.edges`) into `balustrades.path`. Each edge keeps the walkable side on its left, so a
+  positive balustrade offset moves onto the floor. NCC checks are first-pass design checks, not certification.
+- **Type library:** every type node (walls, slabs, roofs, stairs, balustrades, door and window types in `doors` and
+  `windows`, `section_profile`) has a Save button that adds the type to the panel's object library (Building types),
+  with a thumbnail and the inputs to rebuild it (Place node). The record can be copied as JSON from there too.
+- `tests/bim/chain.py` now places 22 nodes (the whole building suite plus views and exploded_axo) with 30 wires:
+  all ok, every solid valid (2026-10-14).
 - Limits of this pass: openings don't see walls that butt into their host; pocket doors don't cut a pocket; braces and
   inclined members get no connectors; bolts have no holes; curved grids are intersected on their chords by readers
-  other than `grids`; no slabs, roofs, stairs or schedules yet.
+  other than `grids`; roofs over courtyards (outlines with holes) and roof-to-roof joins aren't handled; stairs have
+  no winders; no schedules yet.
 
 ## Asset library (what the nodes generate)
 

@@ -26,6 +26,7 @@ namespace Alien
             ScriptRepository.EnsureSettingsFile();
             ScriptRepository.EnsureDefaultRoot();
             McpServer.Instance.Start(ScriptRepository.Port);
+            Ui.Picks.Hook();  // nodes follow the Rhino objects picked into them
             Ui.AlienPanel.Register();
             return GH_LoadingInstruction.Proceed;
         }

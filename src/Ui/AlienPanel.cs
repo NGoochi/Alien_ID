@@ -76,6 +76,7 @@ namespace Alien.Ui
                 _hooked = true; // the model sorted more nodes into categories: refresh the listing
                 Library.Classified += () => Application.Instance.AsyncInvoke(() => { foreach (var p in Live.ToList()) p.Push(true); });
                 Theme.Changed += () => { Instances.RedrawCanvas(); foreach (var p in Live.ToList()) p.Push(true); };
+                ProjectAgent.Changed += () => Application.Instance.AsyncInvoke(() => { foreach (var p in Live.ToList()) p.PushAgent(true); });
             }
         }
 
@@ -218,6 +219,7 @@ namespace Alien.Ui
                     ["selection"] = SelectionJson(Selection()),
                     ["library"] = _library,
                     ["categories"] = Library.CategoryList(),
+                    ["essentials"] = Library.EssentialsList(),
                     ["theme"] = Theme.Current.ToJson(),
                     ["presets"] = Theme.PresetsJson(),
                     ["host"] = _sidecar ? "grasshopper" : "rhino",
@@ -230,6 +232,7 @@ namespace Alien.Ui
                         ["settingsFile"] = ScriptRepository.SettingsFile,
                     },
                 };
+                PushAgent(force);
                 var json = state.ToString(Formatting.None);
                 if (!force && json == _sent) return;
                 _sent = json;
@@ -262,7 +265,9 @@ namespace Alien.Ui
                 ["inputs"] = new JArray(n.Header.Inputs.Select(d =>
                 {
                     var p = n.Params.Input.FirstOrDefault(x => x.Name == d.Name);
-                    var value = p != null && p.SourceCount > 0 ? "wired" : d.Button ? "button" : NodeControls.AsText(NodeControls.Current(n, d));
+                    n.ManualValues.TryGetValue(d.Name, out var raw);
+                    var value = p != null && p.SourceCount > 0 ? "wired" : d.Button ? "button"
+                        : Picks.IsPickable(d) ? (Picks.Label(d, raw) ?? "not picked") : NodeControls.AsText(NodeControls.Current(n, d));
                     return new JObject { ["name"] = d.Name, ["value"] = value.Length > 0 ? value : "—" };
                 })),
                 ["code"] = source == null ? null : source.Length > 60000 ? source.Substring(0, 60000) + "\n…" : source,
@@ -289,6 +294,22 @@ namespace Alien.Ui
                 arr.Add(new JObject { ["file"] = name, ["when"] = when });
             }
             return arr;
+        }
+
+        private string _agentSent;
+
+        /// <summary>The agent chat goes in its own message (window.alien.agent), sent when it changed.</summary>
+        private void PushAgent(bool force)
+        {
+            if (!_ready) return;
+            try
+            {
+                var sig = ProjectAgent.Signature();
+                if (!force && sig == _agentSent) return;
+                _agentSent = sig;
+                _web.ExecuteScriptAsync("window.alien && window.alien.agent && window.alien.agent(" + ProjectAgent.StateJson().ToString(Formatting.None) + ")");
+            }
+            catch (Exception ex) { RhinoApp.WriteLine("Alien agent: " + ex.Message); }
         }
 
         /// <summary>Generated assets go in their own message, sent only when one changes (thumbnails make it large).</summary>
@@ -339,6 +360,22 @@ namespace Alien.Ui
                         }
                         break;
                     }
+                    case "agentSend":
+                        ProjectAgent.Send(m.Value<string>("text"));
+                        return;
+                    case "agentStop":
+                        ProjectAgent.Stop();
+                        return;
+                    case "agentNew":
+                        ProjectAgent.NewChat();
+                        return;
+                    case "agentForget":
+                        ProjectAgent.Forget(m.Value<int?>("index") ?? -1);
+                        return;
+                    case "agentModel":
+                        ScriptRepository.SetSetting("agentModel", m.Value<string>("value"));
+                        PushAgent(true);
+                        return;
                     case "openUrl":
                         if (!AlienUi.OpenUrl(m.Value<string>("url"))) Toast("That link can't be opened from here.");
                         return;
@@ -398,6 +435,13 @@ namespace Alien.Ui
                         Toast(Assets.Remove(m.Value<string>("kind"), m.Value<string>("id")));
                         PushAssets();
                         break;
+                    case "copyRecord":
+                    {
+                        var dir = Assets.Folder(m.Value<string>("kind"), m.Value<string>("id"));
+                        var rec = dir == null ? null : Path.Combine(dir, "record.json");
+                        if (rec != null && File.Exists(rec)) { AlienUi.CopyText(File.ReadAllText(rec)); Toast("Record copied: paste it into a Panel wired to a type input."); }
+                        break;
+                    }
                     case "revealAsset":
                         var folder = Assets.Folder(m.Value<string>("kind"), m.Value<string>("id"));
                         if (folder != null) AlienUi.Reveal(Path.Combine(folder, "asset.json"));

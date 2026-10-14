@@ -2,6 +2,7 @@
 # NODE_INPUTS: name:str | "type name (blank: the preset's)" default=""
 # NODE_INPUTS: layers:list[str] | "layers exterior -> interior, thickness in mm: 'brick 110; cavity 40; timber stud 90*; plasterboard 10' (* = core). Replaces the preset's layers when given" default=""
 # NODE_INPUTS: plane:Plane | "where the swatch sits (default: world origin)"
+# NODE_INPUTS: save:bool | "add this type to the Alien library" button
 # NODE_OUTPUTS: wall_type:str | "wall_type record for walls", names:list[str] | "layer names, exterior first", materials:list[str] | "layer materials", thicknesses:list[float] | "layer thicknesses (m)"
 # NODE_OUTPUTS: total:float | "overall thickness (m)", swatch:list[Brep] | "a stepped section sample, one solid per layer", colours:list[Color] | "colour per swatch solid", info:str
 # CATEGORY: Building elements
@@ -11,7 +12,7 @@
 # all work). A * marks the core (the structure: "core centre" location lines sit on its middle); without one the
 # thickest structural layer is the core. Materials come from the layer names (brick, cavity/air, insulation, stud,
 # steel, plasterboard, render, concrete, block, CLT, AAC, cladding...). Info shows the layers in the same text form, so
-# a preset can be copied into `layers` and edited.
+# a preset can be copied into `layers` and edited. Save keeps the type in the Alien library (the swatch is its picture).
 import alien_bim as bim
 import alien_walls as aw
 
@@ -68,3 +69,19 @@ info = "\n".join([
     "Exterior -> interior: " + aw.layers_text(L),
     "Core: " + (", ".join(core) or "none"),
 ] + notes)
+
+if save:  # the button: keep this type in the library, the swatch moved home to the origin
+    import math
+    import alien_assets
+    # turned half a turn, so the thumbnail's iso camera (from -Y, +X) sees the exterior face and the flush end, where
+    # every layer shows in section
+    home = rg.Transform.Rotation(math.pi, rg.Vector3d.ZAxis, rg.Point3d.Origin) * rg.Transform.PlaneToPlane(base, rg.Plane.WorldXY)
+    kept = []
+    for sw in swatch:
+        sw = sw.DuplicateBrep()
+        sw.Transform(home)
+        kept.append(sw)
+    alien_assets.save_type("wall_type", t["name"], wall_type, "wall_types",
+                           {"preset": str(preset or ""), "name": str(name or ""), "layers": text}, geometry=kept,
+                           colours=colours, names=names if len(names) == len(kept) else None, summary="%.0f mm, %d layer%s" % (total * 1000, len(L), "" if len(L) == 1 else "s"))
+    info += "\nsaved to the library as %s" % t["name"]

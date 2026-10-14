@@ -279,7 +279,8 @@ namespace Alien
         {
             var rc = r.Control;
             float cy = rc.Y + rc.Height / 2f;
-            var value = NodeControls.Current(Owner, r.Def);
+            // A pick resolves to Rhino geometry: its control only needs the label, not the geometry.
+            var value = r.Kind == ControlKind.Pick ? null : NodeControls.Current(Owner, r.Def);
             switch (r.Kind)
             {
                 case ControlKind.Slider:
@@ -322,6 +323,26 @@ namespace Alien
                     }
                     using (var tb = new SolidBrush(busy ? Theme.Current.OnAccent : Accent))
                         g.DrawString(label, f, tb, bb, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+                    break;
+                }
+                case ControlKind.Pick:
+                {
+                    // "◎ Select in Rhino", or what is picked ("✓ 3 curves") with × to clear
+                    Owner.ManualValues.TryGetValue(r.Def.Name, out var raw);
+                    var label = Picks.Label(r.Def, raw);
+                    bool has = label != null, missing = has && label.Contains("missing");
+                    var bb = new RectangleF(rc.X, rc.Y + 1, rc.Width, rc.Height - 2);
+                    using (var bp = RoundRect(bb, 4f))
+                    {
+                        using (var fb = new SolidBrush(FieldBg)) g.FillPath(fb, bp);
+                        using (var fe = new Pen(has ? (missing ? Amber : FieldEdge) : Accent, 0.9f)) g.DrawPath(fe, bp);
+                    }
+                    var fmt = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+                    using (var tb = new SolidBrush(has ? (missing ? Amber : Text) : Accent))
+                        g.DrawString(has ? (missing ? "! " : "✓ ") + label : "◎ Select in Rhino", f, tb, new RectangleF(bb.X + 5, bb.Y, bb.Width - (has ? 20 : 8), bb.Height), fmt);
+                    if (has)
+                        using (var xb = new SolidBrush(Dim)) g.DrawString("×", f, xb, new RectangleF(bb.Right - 14, bb.Y, 12, bb.Height),
+                            new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
                     break;
                 }
                 case ControlKind.Choice:
@@ -382,6 +403,13 @@ namespace Alien
             if (r == null) return base.RespondToMouseDown(sender, e);
             // While a model is writing the script, its retry loop judges the next solve: no input changes until it's done.
             if (Owner.IsDescribing) return GH_ObjectResponse.Handled;
+            if (r.Kind == ControlKind.Pick)
+            {
+                // × clears the pick; anywhere else on the control picks (again) in Rhino
+                if (Owner.ManualValues.ContainsKey(r.Def.Name) && pt.X > r.Control.Right - 16) Owner.SetInput(r.Def.Name, null);
+                else Picks.Pick(Owner, r.Def);
+                return GH_ObjectResponse.Handled;
+            }
             var value = NodeControls.Current(Owner, r.Def);
             switch (r.Kind)
             {

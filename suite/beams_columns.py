@@ -1,6 +1,6 @@
 # NODE_INPUTS: grids:list[object] | "grid records (from grids); sample grids when unwired", levels:list[object] | "level records (from levels); sample levels when unwired"
-# NODE_INPUTS: column:str | "column section: 310UC96.8, SHS 150x9, CHS 168.3x7.1, GL18 360x360, concrete 450x450 (blank: the material's default)" default=""
-# NODE_INPUTS: beam:str | "beam section: 410UB53.7, 250PFC, RHS 200x100x6, LVL 360x63, concrete 600x400 (blank: the material's default)" default=""
+# NODE_INPUTS: column:str | "column section: 310UC96.8, SHS 150x9, CHS 168.3x7.1, GL18 360x360, concrete 450x450, or a profile record from section_profile (blank: the material's default)" default=""
+# NODE_INPUTS: beam:str | "beam section: 410UB53.7, 250PFC, RHS 200x100x6, LVL 360x63, concrete 600x400, or a profile record from section_profile (blank: the material's default)" default=""
 # NODE_INPUTS: material:str | "frame material: picks the default sections and reads bare sizes like 400x400" default="steel" options="steel|timber|concrete"
 # NODE_INPUTS: columns_at:str | "where columns go" default="all intersections" options="all intersections|perimeter|none", skip:str | "intersections left without a column, e.g. 'B/2, C/3'" default=""
 # NODE_INPUTS: beams_on:str | "grid lines that get beams" default="both" options="both|letters|numbers|none"
@@ -18,7 +18,8 @@
 # depth along the numbered grid) plus `rotation`. Beams run between neighbouring intersections along the chosen grid
 # lines, tops `top_offset` below each level above the base, ends 12 mm short of the column face they meet (flange, web
 # or flange tips, by the column's orientation). Where no column stands, the direction with more beams is primary (ties:
-# the lettered grids) and the others stop at its flange tips. Section names are read forgivingly (alien_sections).
+# the lettered grids) and the others stop at its flange tips. Section names are read forgivingly (alien_sections); a
+# profile record (section_profile, or a library profile) is used as it is, custom shapes included.
 import time
 
 import alien_bim as ab
