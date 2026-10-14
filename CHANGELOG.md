@@ -3,6 +3,30 @@
 Releases are GitHub pre-releases at https://github.com/NGoochi/Alien_ID/releases. Alpha: built and tested on Rhino 8
 for macOS; Windows builds from the same code but hasn't been tested on a Windows PC yet.
 
+## Unreleased
+
+### The Alien panel
+- **Project agent:** a chat (panel mode *Project agent*) that sees the whole canvas and keeps a memory per Grasshopper
+  file. It searches the library before building and suggests or places existing nodes, has describe-a-node write new
+  ones, wires, sets inputs, edits scripts, deletes, inspects results and captures the viewport to check its work. Tool
+  steps show as chips; Stop cancels; it won't press Generate buttons unless asked; its changes can be undone. Model:
+  setting `agentModel` (default Claude Sonnet 5.5).
+- **Start here:** the library opens with the base nodes (blank node, 3D object, 2D object, symbol, material, display
+  mode, views, layout, exploded axo), and a new **Create** category holds the generators.
+- **Objects library** (was *Generated*): adds 2D objects, symbols, display modes and **building types** (wall, slab,
+  roof, stair and balustrade types, doors, windows, section profiles) saved by type nodes' Save buttons; Place node
+  rebuilds a type, Copy record copies it.
+
+### Nodes and canvas
+- **Pick geometry in Rhino:** unwired geometry inputs show *Select in Rhino*; the node keeps the references and
+  re-solves when the objects move, change or are deleted.
+- **Suite nodes on the toolbar:** a button per suite node on the Alien tab (Create, Site, Building, Views, Entourage,
+  Data).
+- **New suite nodes:** `slab_types`, `slabs`, `roof_types`, `roofs` (straight-skeleton hip and gable roofs),
+  `stair_types`, `stairs`, `balustrade_types`, `balustrades` (first-pass NCC checks), `section_profile`, `object_2d`,
+  `symbol`, `display_mode`, `views`, `layout`, `exploded_axo`. `wall_types`, `doors` and `windows` gain Save buttons.
+- MCP `add`, `wire`, `delete` and `set_values` record Grasshopper undo.
+
 ## 0.02-alpha (14 Oct 2026)
 
 Downloads: `Alien-0.02-alpha-Setup.exe` (Windows), `Alien-0.02-alpha.pkg` (macOS), `Alien-0.02-alpha.zip` (by hand),

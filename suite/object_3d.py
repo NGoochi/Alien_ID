@@ -6,7 +6,7 @@
 # NODE_INPUTS: height:float | "height (m); 0 = as built" min=0 max=10 default=0, plane:Plane | "where it stands, front facing the plane's -Y (default: world origin)"
 # NODE_OUTPUTS: parts:list[Brep] | "the object's solids", names:list[str] | "part names", materials:list[str] | "material per part", colours:list[Color] | "preview colour per part"
 # NODE_OUTPUTS: size:str | "width x depth x height (m)", info:str | "model, cost, attempts", code:str | "the generated build code"
-# CATEGORY: Massing & objects
+# CATEGORY: Create
 # 3D object: describe a thing (or give a picture), press Generate, and a model writes RhinoCommon code that builds it from solids at real-world size.
 #
 # Only Generate calls the model: changing the description waits for it, and a design built before comes back free

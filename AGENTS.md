@@ -19,8 +19,11 @@ touching C#, [docs/DEV_NOTES.md](docs/DEV_NOTES.md) (hard-won facts).
   the Alien mark, a growing text box that keeps typing on click-away, describe-a-node from a selection (auto-wired), and
   a first-pass building suite (bim_site, levels v2, grids, wall_types, walls, doors, windows, curtain_wall,
   beams_columns, structure_edit, connectors). On 14 Oct 2026 (0.02-alpha): one-click installers (Windows Setup.exe,
-  macOS .pkg) and an in-panel Help screen that links an OpenRouter key. Phases 2–3 (Cloudflare library, accounts,
-  Stripe test mode) are not started.
+  macOS .pkg) and an in-panel Help screen that links an OpenRouter key. Since 0.02 (unreleased): the project agent
+  (panel chat with tools and project memory), picking geometry in Rhino, suite nodes on the toolbar, "Start here", the
+  object library with building types, and 15 more suite nodes (slabs, roofs, stairs, balustrades and their types,
+  section_profile, object_2d, symbol, display_mode, views, layout, exploded_axo). Phases 2–3 (Cloudflare library,
+  accounts, Stripe test mode) are not started.
 
 ## Architecture
 
@@ -35,15 +38,17 @@ src/
                         keywords), and the background model call that sorts uncategorised nodes
   Assets.cs             generated assets (.alien/assets/<kind>/<id>/): listing with thumbnails, bake as block, add
                         texture as a PBR material, the recipe to re-place the node that made one
-  AlienUi.cs            dialogs and shell helpers (editor, reveal, settings file)
+  AlienUi.cs            dialogs and shell helpers (editor, reveal, settings file, allow-listed browser links)
+  SuiteComponents.cs    a toolbar button per suite node (SuiteComponent binds itself to suite/<script>.py)
   Scripting/            HeaderParser (header grammar -> ParamDef), ScriptRunner (RhinoCode), TypeMap, Values
   Ai/                   ModelClient (OpenRouter / Ollama, one OpenAI-style client), Generator (the retry loop),
                         Prompts (system prompt = rules + AGENT_GUIDE sections), Transcript (per-node request history),
-                        OpenRouterAccount (the Help screen's key check and credit balance)
+                        OpenRouterAccount (the Help screen's key check and credit balance), Agent (the project agent:
+                        sessions, the tool loop over MCP tools, project memory)
   Ui/                   AlienPanel (Eto WebView showing pane.html), AlienSidecar (panel window glued to the GH editor),
                         NodeControls (control kind, recommended ranges), InlineEditor (text box on the canvas), Theme
                         (presets + colours mixed from background/text/accent), Logo (the Alien mark as a GDI path),
-                        Suggest, ImageDrop, pane.html
+                        Suggest, ImageDrop, Picks (geometry picked in Rhino, kept as references), pane.html
   Mcp/                  McpServer (hand-rolled Streamable HTTP, JSON only), Tools*.cs (the tool set), Describe (compact
                         run reports), UiThread (all Rhino/GH calls marshalled to the UI thread, tool calls serialised)
 suite/                  the preloaded nodes (Python) + helpers: alien_graphics (figure/tree drawings), alien_ai (settings,
@@ -53,7 +58,8 @@ suite/                  the preloaded nodes (Python) + helpers: alien_graphics (
                         (Australian section catalogue)
 docs/AGENT_GUIDE.md     agent reference: served by the MCP `docs` tool AND embedded in describe-a-node's prompt
 tests/describe/         the describe-a-node test harness (suite.py) + results
-tests/bim/chain.py      places, wires and checks the whole building suite on the open canvas
+tests/bim/chain.py      places, wires and checks the whole building suite on the open canvas (22 nodes)
+tests/agent/run.py      drives the panel's project agent from a shell (real model calls)
 tools/                  drive a running Rhino from a shell (see tools/README.md)
 installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ (productbuild .pkg), art/ (icon and
                         wizard images drawn from the mark), INSTALL.md, and the by-hand scripts for the zip
@@ -81,6 +87,11 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
 - **Describe from a selection:** a box around several nodes means "build on these": a new node is placed beside them,
   the model sees what each outputs, and its `WIRES:` line is wired before the first judged run. This keeps chains
   continuous (levels and grids -> a slab node) without the user wiring by hand.
+- **The project agent reuses the MCP tools** (through `McpServer.Invoke`) instead of a second tool set, so the panel's
+  agent and outside agents see and change the same things; MCP edits record Grasshopper undo, so its work can be
+  undone. It leaves out run_code, rhino, doc and bake, and won't press Generate buttons unless the request says so.
+- **Geometry inputs are picked, not only wired:** a pick is a manual value `{"pick": [ids]}` resolved to the objects'
+  current geometry on each solve, and Rhino object events re-solve the node, like Grasshopper's own referenced params.
 - **Describe-a-node:**
   - The model always returns the whole file.
   - Alien writes it (the old version goes to `.alien/history`), re-solves, and judges the run report: an error, unset
@@ -214,8 +225,10 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
 
 ## Next up
 
-- Test 0.02-alpha on Windows: run Setup.exe (the key page, settings.ps1, the uninstaller, Start Rhino), then the
-  plugin itself (the sidecar as an owned window, the controls, the Help screen's links).
+- Test on Windows: run Setup.exe (the key page, settings.ps1, the uninstaller, Start Rhino), then the plugin itself
+  (the sidecar as an owned window, the controls, picking, the Help screen's links, the toolbar buttons).
+- The project agent: a cheaper default (Haiku) once tested on agent tasks; streaming replies; showing its planned
+  changes before applying risky ones.
 - Sign the installers (an Authenticode certificate for Setup.exe; an Apple Developer ID and notarisation for the .pkg)
   so SmartScreen and Gatekeeper stop asking.
 - **Library (Phase 2):** publish and install from the panel; a Cloudflare Worker with R2 and D1; review before install.

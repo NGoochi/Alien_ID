@@ -11,7 +11,9 @@ a typical density; concrete is any rectangle or round at 2,500 kg/m3.
 lookup(name, material, role) reads forgiving names and returns (spec, note): "310UB40.4", "310 UB 40.4", "310ub40",
 "150x150x9 SHS", "SHS 150x9", "RHS 200x100x6", "CHS 168.3x7.1", "EA 75x75x6", "250PFC", "GL18 360x90",
 "LVL 300x63", "MGP10 90x45", "concrete 400x400", "600 dia". Steel names snap to the nearest catalogue size (with a
-note); an unknown name falls back to the material's default section for that role (with a note).
+note); an unknown name falls back to the material's default section for that role (with a note). A profile record
+(section_profile's output, or a library profile's record.json, as JSON text or a dict) is taken as it is, custom
+shapes included (from_record).
 
 A spec is what alien_bim.section()/member() take, in metres: {"shape": I|C|box|tube|L|rect|circle, "name", "family",
 "material", "grade", "d", "b", "tf", "tw", "t", "kg_m"}. d is the depth (the section's local Y: up for a beam,
@@ -22,6 +24,7 @@ exactly as alien_bim.member() builds the solid (x = up x axis, y = the depth dir
 face() says where a member arriving along a direction meets another member's surface (flange, web, flange tips, side);
 build_frame() and fit_beams() make the columns and beams of a grid and trim beam ends to their supports.
 """
+import json
 import math
 import re
 
@@ -230,7 +233,10 @@ def _concrete(d, b=None, round_=False):
 
 def parse(name, material=None):
     """Read a section name -> (spec, note), or (None, why) when it can't be read. material ("steel", "timber",
-    "concrete") says how to read a bare size like "400x400"."""
+    "concrete") says how to read a bare size like "400x400". A profile record (JSON text or dict) is read as it is."""
+    if isinstance(name, dict) or str(name if name is not None else "").lstrip().startswith("{"):
+        rec = _as_record(name)
+        return from_record(rec) if rec is not None else (None, "unreadable profile record (expected JSON text)")
     raw = str(name if name is not None else "").strip()
     s = _norm(raw)
     if not s:
@@ -350,6 +356,80 @@ def parse(name, material=None):
             return _concrete(nums[0], round_=True)[0], metres
         return _concrete(nums[0], nums[1] if len(nums) > 1 else None)[0], metres
     return None, "unknown section '%s'" % raw
+
+
+# ── profile records ──────────────────────────────────────────
+
+SPEC_KEYS = ("shape", "name", "family", "material", "grade", "d", "b", "t", "tf", "tw", "kg_m")
+DENSITY = {"steel": STEEL, "aluminium": 2700.0, "timber": 600.0, "concrete": CONCRETE}
+
+
+def _as_record(value):
+    """A record given as a dict or as JSON text -> dict, else None."""
+    if isinstance(value, dict):
+        return value
+    try:
+        v = json.loads(str(value).strip())
+    except ValueError:
+        return None
+    return v if isinstance(v, dict) else None
+
+
+def area_mm2(spec):
+    """Nominal cross-section area (mm2) of a spec as alien_bim.section() draws it (sharp corners)."""
+    hb, hd = halves(spec)
+    b, d = 2000.0 * hb, 2000.0 * hd
+    t, tf, tw = (x * 1000.0 for x in thick(spec))
+    shape = shape_of(spec)
+    if shape in ROUND_SHAPES:
+        return math.pi * d * d / 4.0
+    if shape in TUBE_SHAPES:
+        t = min(t, d / 2.0)
+        return math.pi * (d - t) * t
+    if shape in BOX_SHAPES:
+        t = min(t, b * 0.4, d * 0.4)
+        return b * d - (b - 2 * t) * (d - 2 * t)
+    if shape in I_SHAPES + C_SHAPES:
+        return 2 * b * tf + (d - 2 * tf) * tw
+    if shape in ("t", "tee"):
+        return b * tf + (d - tf) * tw
+    if shape in L_SHAPES:
+        return t * (b + d - t)
+    return b * d
+
+
+def from_record(rec):
+    """A profile record (alien "profile", metres; a bare spec dict works too) -> (spec, note), or (None, why). The
+    record's own sizes are used as they are: no snapping to the catalogue."""
+    kind = rec.get("alien")
+    if kind not in (None, "profile"):
+        return None, "a %s record is not a section profile" % kind
+    shape = str(rec.get("shape") or "").lower()
+    if shape not in I_SHAPES + C_SHAPES + L_SHAPES + BOX_SHAPES + TUBE_SHAPES + ROUND_SHAPES + ("rect", "t", "tee"):
+        return None, "profile record: unknown shape '%s'" % rec.get("shape")
+    spec = {k: rec[k] for k in SPEC_KEYS if rec.get(k) not in (None, "")}
+    try:
+        sizes = {k: float(spec[k]) for k in ("d", "b", "t", "tf", "tw") if k in spec}
+    except (TypeError, ValueError):
+        return None, "profile record: sizes are not numbers"
+    if not sizes or max(sizes.values()) <= 0 or min(sizes.values()) < 0:
+        return None, "profile record has no sizes"
+    note = ""
+    if max(sizes.values()) > 5.0:  # records are metres; a 300 here was meant as mm
+        sizes = {k: v / 1000.0 for k, v in sizes.items()}
+        note = "profile record sizes read as mm"
+    spec.update({k: round(v, 6) for k, v in sizes.items()})
+    spec.setdefault("name", "Profile")
+    spec.setdefault("family", "custom")
+    spec.setdefault("material", "steel")
+    spec.setdefault("grade", "")
+    try:
+        spec["kg_m"] = float(spec.get("kg_m") or 0)
+    except (TypeError, ValueError):
+        spec["kg_m"] = 0.0
+    if spec["kg_m"] <= 0:
+        spec["kg_m"] = _kg(area_mm2(spec), DENSITY.get(str(spec["material"]).lower(), STEEL))
+    return spec, note
 
 
 def default_name(material="steel", role="column"):

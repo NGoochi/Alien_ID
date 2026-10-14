@@ -179,6 +179,34 @@ owner-only (it holds an API key). `ScriptRepository.SettingToken` / `SetSettingT
 - Panel captures need Rhino in front (a WKWebView in an occluded window captures black). `tools/pane_snapshot.swift`
   renders pane.html off screen with a state saved by `panel.py --state`, so the page can be checked without taking
   focus from the user.
+- Project agent (`Ai/Agent.cs`, panel mode "Project agent"): a tool-using chat per Grasshopper file. Each request goes
+  to the agent model (settings `agentModel`, default anthropic/claude-sonnet-5.5) with a system prompt (rules + the
+  AGENT_GUIDE Workflow, Header and Building records sections + the suite list), the last 8 turns (user text, reply, a
+  one-line list of what was done), and fresh context (project memory notes, the `canvas` tool's output with `sel`, the
+  document units). Tools are the MCP tools minus run_code, rhino, doc and bake, run through
+  `McpServer.Invoke` (the same dispatcher and lock as MCP calls), plus `library` (search), `remember` (project notes)
+  and `select` (canvas selection). Captures come back as a user message with image parts (tool results carry text
+  only). At most 24 steps a request; Stop cancels. Pressing a `generate*` button needs the user's request to say so
+  ("generate", "go ahead", "yes"…). Sessions are saved in `<repo>/.alien/agent/<sha1(key)>.json` (key = the .gh path,
+  or the document id until it is saved; an unsaved file's chat moves to its path on the first request after saving).
+  `ModelClient.CompleteWithTools` sends OpenAI-style tools through OpenRouter.
+- MCP `add`, `wire`, `delete` and `set_values` record Grasshopper undo events (RecordAddObjectEvent, RecordWireEvent,
+  RecordRemoveObjectEvent, RecordGenericObjectEvent), so what the agent (or any MCP client) changes can be undone.
+- Picking geometry (`Ui/Picks.cs`): `ControlKind.Pick` for unwired geometry inputs. A click runs Rhino's `GetObject`
+  (preselected objects count; `GetMultiple` for lists) or `GetPoint` for a single Point3d, after the mouse handler has
+  returned (`InvokeOnUiThread`). The manual value is `{"pick": [guid...]}`; `Values.Resolve` turns it into the objects'
+  current geometry, converted to the input's type (extrusions and SubDs to Breps, single-face Breps to Surfaces, Breps to
+  meshes…; missing objects skipped). Replace/Delete/Undelete events on picked objects collect into one re-solve on
+  Idle. The control label counts objects without converting geometry (it runs on every repaint).
+- Suite nodes on the toolbar (`SuiteComponents.cs`): one `SuiteComponent` subclass per suite node (Grasshopper registers
+  components by type), panels Create / Site / Building / Views / Entourage / Data on the Alien tab. Each binds to
+  `<repo>/suite/<script>.py` in AddedToDocument when it has no script yet (a file or paste brings its own); the
+  ComponentGuid is an MD5 of "alien.suite.<script>", so it stays stable; the description is the embedded suite file's
+  library line; icons are coloured tiles with a glyph. The plain Alien node stays under Script.
+- Library: a Create category (generators) leads; `Library.Essentials` is the "Start here" strip (blank node, 3D object,
+  2D object, symbol, material, display mode, views, layout, exploded axo; missing scripts are left out). The second tab
+  is the object library: generated kinds plus building types (`alien_assets.TYPE_KINDS`, saved by type nodes' Save
+  button through `alien_assets.save_type`: record.json + thumbnail + inputs for Place node; Copy record copies the JSON).
 - First run: `ScriptRepository.EnsureDefaultRoot` (on Grasshopper load) sets the script folder to Documents/Alien
   scripts when none was ever chosen, so the first node no longer asks; a chosen folder that's missing is left alone.
 
@@ -244,6 +272,32 @@ Images inside a solve (thumbnails, texture processing): decode and resize with E
 arrays between .NET and Python through base64 (much faster than element by element). `Graphics.FillPolygon` needs a
 .NET `PointF[]` (`System.Array[ed.PointF](list)`); a same-colour `DrawPolygon` after each triangle hides the hairline
 seams anti-aliasing leaves.
+
+### More Rhino API facts (views, layout, display_mode, symbol: 2026-10-14)
+
+- **Layout details clip only after their planes are committed once all pages exist:** after `NamedViews.Restore` into
+  details, add each detail to its planes (`AddClipViewportId`) and `CommitChanges` at the end. Committing inside the
+  detail loop wasn't enough (site_views commits per detail: unverified whether its details clip).
+- **A clipping plane's own depth (`PlaneDepth`) works in model views, not in layout details:** views.py limits a plan's
+  depth with a second, back-facing plane.
+- **`ChangeToParallelReflectedProjection()` returns False** (RhinoViewport and ViewportInfo), so an RCP is a plain view
+  looking up (east and west swap).
+- **A named view's frustum must be set on the live viewport** (`ViewportInfo.SetFrustum` -> `vp.SetViewProjection(vpi,
+  False)`, then `NamedViews.Add(name, vp.Id)`); changing a copy's frustum and adding it keeps the old frustum. A copy's
+  DisplayModeId does stick. `ViewInfo(vp).Name = ...` renames the live viewport.
+- **Hidden clipping planes are skipped by `Objects.GetObjectList(ObjectType.ClipPlane)`:** use ObjectEnumeratorSettings
+  with HiddenObjects; `FindByUserString` finds hidden objects.
+- **Re-making views deletes the planes layout details use:** views.py's info says to press the layout again.
+- **Captures of a backgrounded Rhino draw no document objects in Technical or Pen modes** (even stock ones), and
+  Grasshopper previews ignore most display-mode settings (only background and lighting apply). Check display modes on
+  real document objects with render meshes (`CreateMeshes`), and Technical looks through their .ini.
+- **Display modes:** `DisplayModeDescription.CopyDisplayMode` for the first install; updating in place = export the base
+  .ini, rewrite id, name and order, `ImportFromFile`. The material colour (Front Material Diffuse,
+  OverrideObjectColor) and technical line colours/thickness aren't in RhinoCommon: patch the .ini and re-import.
+  `RhinoView.CaptureToBitmap(size, mode)` captures in a mode without changing the viewport's.
+- **A non-uniform scale opens closed PolyCurves that contain arcs** (and their planar fills are lost): convert to NURBS
+  first (alien_codegen.transform).
+- **Font.FromQuartetProperties** gives bold faces for TextEntity text curves (symbol labels).
 
 ## Victorian open data (vic_site_map, alien_vicdata)
 

@@ -101,6 +101,30 @@ table.costs{width:100%;border-collapse:collapse;margin-top:4px}
 table.costs td{padding:3px 0;border-top:1px solid var(--edge);vertical-align:top}
 table.costs td:last-child{text-align:right;color:var(--dim);white-space:nowrap;padding-left:8px}
 .msg-ok{color:var(--accent)}.msg-err{color:var(--red)}
+.ess{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 9px}
+.ess button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 3px 6px;border-radius:8px;background:var(--card);min-width:0}
+.ess button:hover{border-color:var(--accent)}
+.ess .g{width:26px;height:26px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.ess .l{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.modes{display:flex;gap:2px;margin:8px 12px 0;background:var(--field);border:1px solid var(--edge);border-radius:7px;padding:2px}
+.modes button{flex:1;border:0;background:none;border-radius:5px;padding:4px 6px;color:var(--dim);font-weight:600}
+.modes button.on{background:var(--card);color:var(--text)}
+.chat{display:flex;flex-direction:column;gap:7px;margin:4px 0 8px}
+.msg{white-space:pre-wrap;word-wrap:break-word;-webkit-user-select:text;user-select:text}
+.msg.user{align-self:flex-end;max-width:88%;background:var(--card);border:1px solid var(--edge);border-radius:10px 10px 2px 10px;padding:6px 9px}
+.msg.assistant{line-height:1.5}
+.msg.assistant code{font:11px Menlo,Consolas,monospace}
+.msg.tool{font-size:11px;color:var(--dim);display:flex;gap:6px;align-items:flex-start}
+.msg.tool .i{color:var(--accent);flex:none}
+.msg.tool.bad .i,.msg.tool.bad{color:var(--red)}
+.msg.tool img{display:block;width:100%;border-radius:6px;margin-top:4px;border:1px solid var(--edge)}
+.msg.error{color:var(--red)}
+.starters{display:flex;flex-direction:column;gap:5px;margin:4px 0 10px}
+.starters button{text-align:left;padding:6px 9px;border-radius:8px}
+.notes-list div{display:flex;gap:6px;align-items:flex-start;padding:3px 0;border-top:1px solid var(--edge)}
+.notes-list div:first-child{border-top:0}
+.notes-list span{flex:1}
+#agentInput{min-height:58px}
 </style>
 </head>
 <body>
@@ -113,6 +137,23 @@ table.costs td:last-child{text-align:right;color:var(--dim);white-space:nowrap;p
   <button id="dock" class="icon" title="Dock in Rhino">⇲</button>
   <button id="close" class="icon" title="Close the panel">✕</button>
 </header>
+
+<div class="modes"><button id="modeNode" class="on">Node</button><button id="modeAgent">Project agent</button></div>
+
+<section id="agentView" style="display:none">
+  <div class="row" style="margin:0 0 6px"><span class="title grow" id="agentTitle">Project agent</span>
+    <button id="agentMemoryBtn" title="What the agent remembers about this project">Memory</button>
+    <button id="agentNew" title="Start a new conversation (the project memory is kept)">New chat</button></div>
+  <div id="agentMemory" class="card" style="display:none;margin:0 0 8px"></div>
+  <div id="agentIntro" class="dim" style="margin-bottom:6px">Knows your whole canvas and remembers this project. It can find, place, wire, test,
+    fix and delete nodes, and look at the viewport. Everything it changes can be undone (Cmd/Ctrl+Z).</div>
+  <div id="agentStarters" class="starters"></div>
+  <div id="agentLog" class="chat"></div>
+  <div id="agentStatus" class="warn" style="margin-bottom:5px"></div>
+  <textarea id="agentInput" placeholder="Ask about your project, or ask for something to be built…"></textarea>
+  <div class="row"><select id="agentModel" title="Model for the project agent"></select><span class="grow dim" id="agentCost"></span>
+    <button id="agentStop" class="stop" style="display:none">Stop</button><button id="agentSend" class="go">Send</button></div>
+</section>
 
 <section id="helpView" style="display:none">
   <div class="row" style="margin:0 0 8px"><span class="title grow">Help</span><button id="helpDone" class="go">Done</button></div>
@@ -209,15 +250,17 @@ table.costs td:last-child{text-align:right;color:var(--dim);white-space:nowrap;p
 </section>
 
 <section id="librarySection">
-  <div class="tabs"><button id="tabNodes" class="on">Nodes</button><button id="tabAssets">Generated</button></div>
+  <div class="tabs"><button id="tabNodes" class="on">Nodes</button><button id="tabAssets">Objects</button></div>
   <div id="nodesView">
+    <h3>Start here</h3>
+    <div id="essentials" class="ess"></div>
     <input id="search" placeholder="Search nodes">
     <div id="chips" class="chips"></div>
     <div id="library"></div>
     <div class="row"><button id="newNode" class="grow">+ New blank node</button></div>
   </div>
   <div id="assetsView" style="display:none">
-    <input id="assetSearch" placeholder="Search generated objects, materials, drawings">
+    <input id="assetSearch" placeholder="Search objects, symbols, materials, building types">
     <div id="assetChips" class="chips"></div>
     <div id="assetCard"></div>
     <div id="assets" class="grid"></div>
@@ -230,11 +273,20 @@ const $ = id => document.getElementById(id);
 const post = (type, data) => window.eto.postMessage(JSON.stringify(Object.assign({ type }, data || {})));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let state = { node: null, library: [], categories: [], settings: {}, selection: [], theme: null, presets: [] };
-let view = 'main', helpAuto = false, keyBusy = false;
+let view = 'main', helpAuto = false, keyBusy = false, mode = 'node', agentState = null;
+try { mode = localStorage.getItem('alien.mode') || 'node'; } catch (e) {}
+const STARTERS = ['What could I build next on this canvas?', 'Look at the viewport and tell me what is there.',
+  'Set up a site, levels and grids for a three-storey building.', 'Which nodes do I need for walls with doors and windows?'];
 const COLOURS = ['background', 'text', 'accent'];
 let shownNode = null;
 let assets = [], tab = 'nodes', category = 'all', assetKind = 'all', picked = null;
-const KINDS = [['object', 'Objects'], ['texture', 'Materials'], ['graphic', 'Drawings']];
+// Library kinds; the building types share one chip.
+const TYPE_KINDS = { wall_type: 'Wall type', slab_type: 'Slab type', roof_type: 'Roof type', stair_type: 'Stair type',
+  balustrade_type: 'Balustrade type', door: 'Door', window: 'Window', profile: 'Profile' };
+const KINDS = [['object', '3D objects'], ['drawing', '2D objects'], ['symbol', 'Symbols'], ['texture', 'Materials'],
+  ['display_mode', 'Display modes'], ['graphic', 'Drawings'], ['types', 'Building types']];
+const kindOf = a => TYPE_KINDS[a.kind] ? 'types' : a.kind;
+const kindLabel = a => TYPE_KINDS[a.kind] || (KINDS.find(k => k[0] === a.kind) || [0, a.kind])[1];
 const SOURCE = { header: 'set in the script', model: 'sorted by the model', keywords: 'guessed from keywords' };
 try { tab = localStorage.getItem('alien.tab') || 'nodes'; } catch (e) {}
 
@@ -259,6 +311,10 @@ window.alien = {
     if (picked && !assets.some(a => a.kind + '/' + a.id === picked)) picked = null;
     renderAssets();
   },
+  agent(a) {
+    agentState = a;
+    renderAgent();
+  },
   keyStatus(r) {
     keyBusy = !!r.busy;
     const m = $('keyMsg');
@@ -280,7 +336,7 @@ window.alien = {
 function renderTabs() {
   $('tabNodes').classList.toggle('on', tab === 'nodes');
   $('tabAssets').classList.toggle('on', tab === 'assets');
-  $('tabAssets').textContent = assets.length ? `Generated (${assets.length})` : 'Generated';
+  $('tabAssets').textContent = assets.length ? `Objects (${assets.length})` : 'Objects';
   $('nodesView').style.display = tab === 'nodes' ? '' : 'none';
   $('assetsView').style.display = tab === 'assets' ? '' : 'none';
 }
@@ -307,13 +363,69 @@ function applyTheme(t) {
 
 function showView(v) {
   view = v;
+  const main = v === 'main';
   $('settingsView').style.display = v === 'settings' ? '' : 'none';
   $('helpView').style.display = v === 'help' ? '' : 'none';
-  $('nodeSection').style.display = v === 'main' ? '' : 'none';
-  $('librarySection').style.display = v === 'main' ? '' : 'none';
+  document.querySelector('.modes').style.display = main ? '' : 'none';
+  $('nodeSection').style.display = main && mode === 'node' ? '' : 'none';
+  $('librarySection').style.display = main && mode === 'node' ? '' : 'none';
+  $('agentView').style.display = main && mode === 'agent' ? '' : 'none';
+  $('modeNode').classList.toggle('on', mode === 'node');
+  $('modeAgent').classList.toggle('on', mode === 'agent');
   renderSettingsView();
   renderHelp();
   window.scrollTo(0, 0);
+}
+
+// A little markdown for the agent's replies: **bold**, `code`, and bullet lines (escaped first).
+function md(text) {
+  return esc(text).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/^[-*] /gm, '• ');
+}
+
+function setMode(m) {
+  mode = m;
+  try { localStorage.setItem('alien.mode', m); } catch (e) {}
+  showView('main');
+  renderAgent();
+}
+
+function renderAgent() {
+  const a = agentState;
+  if (!a || mode !== 'agent') return;
+  $('agentTitle').textContent = a.title || 'Project';
+  const log = $('agentLog');
+  const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
+  setHtml(log, (a.entries || []).map(e => {
+    if (e.role === 'tool') return `<div class="msg tool ${e.ok === false ? 'bad' : ''}"><span class="i">${e.ok === false ? '!' : '⚙'}</span><span>${esc(e.text)}${e.image ? `<img src="${e.image}" alt="viewport">` : ''}</span></div>`;
+    if (e.role === 'assistant') return `<div class="msg assistant">${md(e.text)}</div>`;
+    return `<div class="msg ${esc(e.role)}">${esc(e.text)}</div>`;
+  }).join(''));
+  const empty = !(a.entries || []).length;
+  $('agentIntro').style.display = empty ? '' : 'none';
+  setHtml($('agentStarters'), empty && !a.busy ? STARTERS.map(t => `<button data-starter="${esc(t)}">${esc(t)}</button>`).join('') : '');
+  $('agentStatus').textContent = a.busy ? (a.status || 'working…') : '';
+  $('agentSend').style.display = a.busy ? 'none' : '';
+  $('agentStop').style.display = a.busy ? '' : 'none';
+  $('agentCost').textContent = a.cost ? `US$${a.cost.toFixed(3)} this project` : '';
+  $('agentMemoryBtn').textContent = `Memory (${(a.notes || []).length})`;
+  setHtml($('agentMemory'), (a.notes || []).length
+    ? `<div class="notes-list">${a.notes.map((n, i) => `<div><span>${esc(n)}</span><button class="icon" data-forget="${i}" title="Forget">✕</button></div>`).join('')}</div>`
+    : '<div class="dim">Nothing yet. Ask the agent to remember things about the project ("remember: the site is 18 Valiant St, 3 storeys").</div>');
+  const models = (state.settings && state.settings.models) || [];
+  const sel = $('agentModel');
+  const opts = models.includes(a.model) ? models : models.concat([a.model]);
+  if (sel.dataset.sig !== opts.join('|') + a.model) {
+    sel.innerHTML = opts.map(m => `<option ${m === a.model ? 'selected' : ''}>${esc(m)}</option>`).join('');
+    sel.dataset.sig = opts.join('|') + a.model;
+  }
+  if (nearBottom) window.scrollTo(0, document.body.scrollHeight);
+}
+
+function sendAgent(text) {
+  text = (text || $('agentInput').value).trim();
+  if (!text || (agentState && agentState.busy)) return;
+  post('agentSend', { text });
+  $('agentInput').value = '';
 }
 
 function renderHelp() {
@@ -415,6 +527,8 @@ function setHtml(el, html) { if (el.dataset.html !== html) { el.innerHTML = html
 
 function renderLibrary() {
   renderTabs();
+  setHtml($('essentials'), (state.essentials || []).map(e => `<button ${e.path ? `data-place="${esc(e.path)}"` : 'data-act="new"'} title="${esc(e.hint)}">
+      <span class="g">${esc(e.glyph)}</span><span class="l">${esc(e.label)}</span></button>`).join(''));
   const q = $('search').value.trim().toLowerCase();
   const cats = state.categories || [];
   const label = k => (cats.find(c => c.key === k) || { label: k }).label;
@@ -434,23 +548,24 @@ function renderAssets() {
   renderTabs();
   const q = $('assetSearch').value.trim().toLowerCase();
   const matched = assets.filter(a => !q || [a.name, a.prompt, (a.materials || []).join(' '), a.node].join(' ').toLowerCase().includes(q));
-  const kinds = KINDS.filter(([k]) => matched.some(a => a.kind === k));
+  const kinds = KINDS.filter(([k]) => matched.some(a => kindOf(a) === k));
   if (assetKind !== 'all' && !kinds.some(([k]) => k === assetKind)) assetKind = 'all';
-  setHtml($('assetChips'), kinds.length > 1 ? chipsHtml([['all', 'All', matched.length]].concat(kinds.map(([k, l]) => [k, l, matched.filter(a => a.kind === k).length])), assetKind, 'kind') : '');
-  const shown = matched.filter(a => assetKind === 'all' || a.kind === assetKind);
+  setHtml($('assetChips'), kinds.length > 1 ? chipsHtml([['all', 'All', matched.length]].concat(kinds.map(([k, l]) => [k, l, matched.filter(a => kindOf(a) === k).length])), assetKind, 'kind') : '');
+  const shown = matched.filter(a => assetKind === 'all' || kindOf(a) === assetKind);
   setHtml($('assets'), shown.map(a => `<div class="tile ${a.kind + '/' + a.id === picked ? 'on' : ''}" data-asset="${esc(a.kind + '/' + a.id)}" title="${esc(a.name)}">
       ${a.thumb ? `<img src="${a.thumb}" alt="">` : `<span class="ph">${esc(a.kind)}</span>`}<div>${esc(a.name)}</div></div>`).join('')
-    || `<div class="empty" style="grid-column:1/-1">${assets.length ? 'Nothing matches.' : 'Nothing generated yet. The 3D object, material texture, scale figure and scale tree nodes save what they make here.'}</div>`);
+    || `<div class="empty" style="grid-column:1/-1">${assets.length ? 'Nothing matches.' : 'Nothing here yet. The generators (3D and 2D objects, symbols, materials, display modes) save what they make here, and type nodes (walls, slabs, roofs, stairs, balustrades, doors, windows, profiles) add types with their Save button.'}</div>`);
   const a = assets.find(x => x.kind + '/' + x.id === picked);
   setHtml($('assetCard'), a ? `<div class="card">
       ${a.thumb ? `<img src="${a.thumb}" alt="">` : ''}
-      <div class="row" style="margin-top:7px"><span class="title grow">${esc(a.name)}</span><span class="pill">${esc((KINDS.find(k => k[0] === a.kind) || [0, a.kind])[1])}</span></div>
+      <div class="row" style="margin-top:7px"><span class="title grow">${esc(a.name)}</span><span class="pill">${esc(kindLabel(a))}</span></div>
       <div class="dim">${esc([a.size, (a.materials || []).join(', '), a.created].filter(Boolean).join(' · '))}</div>
       ${a.prompt ? `<div class="dim clamp" style="margin-top:4px" title="${esc(a.prompt)}">${esc(a.prompt)}</div>` : ''}
       <div class="acts">
         ${a.hasGeometry ? `<button class="go" data-asset-act="bakeAsset" title="Insert as a block at the origin">Bake block</button>` : ''}
         ${a.hasTexture ? `<button class="go" data-asset-act="materialAsset" title="Add as a render material at real size; applied to selected objects">Add material</button>` : ''}
-        ${a.canPlace ? `<button data-asset-act="placeAsset" title="Place the node that made it, with the same inputs">Place node</button>` : ''}
+        ${a.canPlace ? `<button ${TYPE_KINDS[a.kind] ? 'class="go" ' : ''}data-asset-act="placeAsset" title="Place the node that made it, with the same inputs">Place node</button>` : ''}
+        ${a.hasRecord ? `<button data-asset-act="copyRecord" title="Copy the type's record (JSON) to paste into a Panel or a record input">Copy record</button>` : ''}
         <button data-asset-act="revealAsset">Show files</button>
         <button data-asset-act="removeAsset" class="stop" title="Take it out of the library (moved to .alien/trash)">Remove</button>
         <button data-asset-act="close" class="icon" title="Close">✕</button>
@@ -469,6 +584,14 @@ $('send').onclick = send;
 $('stop').onclick = () => post('stop');
 $('settings').onclick = () => showView(view === 'settings' ? 'main' : 'settings');
 $('help').onclick = () => showView(view === 'help' ? 'main' : 'help');
+$('modeNode').onclick = () => setMode('node');
+$('modeAgent').onclick = () => setMode('agent');
+$('agentSend').onclick = () => sendAgent();
+$('agentStop').onclick = () => post('agentStop');
+$('agentNew').onclick = () => post('agentNew');
+$('agentMemoryBtn').onclick = () => { const m = $('agentMemory'); m.style.display = m.style.display === 'none' ? '' : 'none'; };
+$('agentModel').onchange = e => post('agentModel', { value: e.target.value });
+$('agentInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgent(); } });
 $('helpDone').onclick = () => showView('main');
 $('helpSettingsFile').onclick = () => post('settings');
 const linkKey = () => { const k = $('keyInput').value.trim(); if (k && !keyBusy) post('setKey', { key: k }); };
@@ -511,9 +634,11 @@ $('tabNodes').onclick = () => setTab('nodes');
 $('tabAssets').onclick = () => setTab('assets');
 $('newNode').onclick = () => post('new', { lang: $('lang').value });
 document.body.addEventListener('click', e => {
-  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act],[data-preset],[data-url],[data-help],[data-key-act]');
+  const t = e.target.closest('[data-place],[data-restore],[data-act],[data-cat],[data-kind],[data-asset],[data-asset-act],[data-preset],[data-url],[data-help],[data-key-act],[data-starter],[data-forget]');
   if (!t) return;
-  if (t.dataset.url) post('openUrl', { url: t.dataset.url });
+  if (t.dataset.starter) sendAgent(t.dataset.starter);
+  else if (t.dataset.forget) post('agentForget', { index: +t.dataset.forget });
+  else if (t.dataset.url) post('openUrl', { url: t.dataset.url });
   else if (t.dataset.help) showView('help');
   else if (t.dataset.keyAct) {
     if (t.dataset.keyAct === 'removeKey' && !t.dataset.armed) {  // second click within 3 s removes
@@ -541,6 +666,7 @@ document.body.addEventListener('click', e => {
   else if (t.dataset.restore) post('restore', { file: t.dataset.restore });
   else post(t.dataset.act);
 });
+showView('main');
 post('ready');
 </script>
 </body>

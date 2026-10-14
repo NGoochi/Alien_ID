@@ -101,6 +101,54 @@ namespace Alien.Ai
                 ["messages"] = new JArray(messages.Select(x => new JObject { ["role"] = x.Role, ["content"] = x.Content })),
                 ["temperature"] = 0.2,
             };
+            var json = await Post(m, body, ct).ConfigureAwait(false);
+            var usage = json["usage"] as JObject;
+            return new ModelReply
+            {
+                Text = json.SelectToken("choices[0].message.content")?.ToString() ?? "",
+                PromptTokens = usage?.Value<int?>("prompt_tokens") ?? 0,
+                CompletionTokens = usage?.Value<int?>("completion_tokens") ?? 0,
+                Cost = usage?.Value<double?>("cost") ?? 0,
+            };
+        }
+
+        /// <summary>
+        /// One turn of a tool-using chat (OpenAI-style messages and tools, as OpenRouter takes them): the assistant's
+        /// message, with any tool_calls, and what it cost. A transient failure is resent once.
+        /// </summary>
+        public static async Task<(JObject message, ModelReply usage)> CompleteWithTools(ModelChoice m, JArray messages, JArray tools,
+            CancellationToken ct, int maxTokens = 4096)
+        {
+            var body = new JObject
+            {
+                ["model"] = m.Model,
+                ["messages"] = messages,
+                ["temperature"] = 0.2,
+                ["max_tokens"] = maxTokens,
+            };
+            if (tools != null && tools.Count > 0) { body["tools"] = tools; body["tool_choice"] = "auto"; }
+            JObject json;
+            try { json = await Post(m, body, ct).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is TransientException || ex is HttpRequestException)
+            {
+                await Task.Delay(1500, ct).ConfigureAwait(false);
+                try { json = await Post(m, body, ct).ConfigureAwait(false); }
+                catch (TransientException tex) { throw new InvalidOperationException(tex.Message); }
+            }
+            var usage = json["usage"] as JObject;
+            var message = json.SelectToken("choices[0].message") as JObject ?? new JObject { ["role"] = "assistant", ["content"] = "" };
+            return (message, new ModelReply
+            {
+                Text = message.Value<string>("content") ?? "",
+                PromptTokens = usage?.Value<int?>("prompt_tokens") ?? 0,
+                CompletionTokens = usage?.Value<int?>("completion_tokens") ?? 0,
+                Cost = usage?.Value<double?>("cost") ?? 0,
+            });
+        }
+
+        /// <summary>POST a chat-completions body (provider and reasoning settings added here); the parsed reply, or an exception.</summary>
+        private static async Task<JObject> Post(ModelChoice m, JObject body, CancellationToken ct)
+        {
             var effort = ScriptRepository.Setting("reasoning");
             if (m.Local)
             {
@@ -142,15 +190,7 @@ namespace Alien.Ai
                 if (code == 429 || code >= 500 || msg.Contains("Provider returned error")) throw new TransientException(msg);
                 throw new InvalidOperationException(msg);
             }
-
-            var usage = json["usage"] as JObject;
-            return new ModelReply
-            {
-                Text = json.SelectToken("choices[0].message.content")?.ToString() ?? "",
-                PromptTokens = usage?.Value<int?>("prompt_tokens") ?? 0,
-                CompletionTokens = usage?.Value<int?>("completion_tokens") ?? 0,
-                Cost = usage?.Value<double?>("cost") ?? 0,
-            };
+            return json;
         }
 
         private static string Clip(string s, int max) => s == null ? "" : s.Length > max ? s.Substring(0, max) + "…" : s;

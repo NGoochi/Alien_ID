@@ -394,6 +394,96 @@ SUITE = {
         "checked": ["2026-10-13: every profile pair, truss type and fit mode; line, arc, spline, circle, CW/CCW rectangles, "
                     "L-shape, sloped and doubled-back paths; offsets and flip; a 48 m 12-storey wall with trusses (956 valid solids)."],
     },
+    "slab_types.py": {
+        "summary": "A floor build-up as a slab_type record: presets or layers typed top to bottom in mm, a finish and a soffit.",
+        "behaviour": ["Presets: concrete 200, post-tensioned 250, hollowcore 200 + topping, CLT 180 + screed, timber joist floor, waffle 300, steel deck composite 150, slab on ground 100, custom.", "Layers 'screed 50; CLT 180*; plasterboard ceiling 13' (mm, cm and m work; * = structure) replace the preset's.", "Save adds the type to the library (kind slab_type)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: every preset, finish and soffit; junk, negative and oversize layers."],
+    },
+    "slabs.py": {
+        "summary": "Layered slabs at chosen levels from closed outlines, with openings, as slab records, solids, edges and plan linework.",
+        "behaviour": ["which: floors (all but the top level, the roof's) | all | suspended | indices '1-3' | names or codes.", "Edge offset, setdown, one slab type per chosen level (the last repeats); outlines at several heights go to their own level.", "Openings cut at their own level (stair voids) or through every slab when sketched at the outline's height (through = auto); overlapping openings merge, crossing ones notch.", "edges output (outer and void edges at the top) feeds balustrades; area is net m2."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: holes, notches, splits, circles, concave outlines, every which keyword, offsets checked by hand, stair voids from the stairs node."],
+    },
+    "roof_types.py": {
+        "summary": "A roof build-up as a roof_type record: presets or custom layers, the pitch range the covering allows and a roofing colour.",
+        "behaviour": ["Presets: metal deck, metal deck low pitch, concrete tile, terracotta tile, slate, membrane on concrete, green roof, custom.", "roofs warns when the pitch is outside the covering's range.", "Save adds the type to the library (kind roof_type)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: every preset and colour; custom layers."],
+    },
+    "roofs.py": {
+        "summary": "Hip, gable, dutch gable, skillion or flat roofs over closed outlines on a level, with layered solids, trims and roof-plan linework.",
+        "behaviour": ["Hip, gable and dutch gable use a weighted straight skeleton, so L, T, U, concave and rotated outlines work; flat and skillion keep exact curves.", "pitch, eaves overhang, gable overhang, ridge direction (auto = along the long side, x, y), flip for skillion/flat falls, fascia depth.", "Outputs: solids (one per layer per roof part, then fascias, barges, gutters, gablets), ridges, hips, valleys, eaves, a roof plan with the dashed wall line and fall arrows, roof records with faces (pitch, aspect from true north, area)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: 5 forms x 12 outlines x 3 pitches (156/156 valid closed solids, volumes and slope areas checked); odd outlines; every option."],
+    },
+    "stair_types.py": {
+        "summary": "How a stair is built, as a stair_type record with Australian NCC limits for public or private use.",
+        "behaviour": ["Construction: concrete in-situ, steel stringers, timber, precast; riser and going targets (mm), tread, nosing, waist, stringer, open or closed risers.", "NCC first-pass limits: risers 115-190 mm, goings 250-355 public / 240-355 private, 2R+G 550-700, 2-18 risers a flight, landings >= 750 mm, open-riser gaps <= 125 mm.", "Save adds the type to the library (kind stair_type)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: every construction and use, out-of-range targets (FAIL reported)."],
+    },
+    "stairs.py": {
+        "summary": "Straight, L, U or spiral stairs between two levels from base lines, with NCC checks, solids, plan, balustrade edges and the floor void.",
+        "behaviour": ["Risers are fitted to the floor-to-floor height; flights over 18 risers get landings; L and U split at the turn.", "Plan: treads, walking line with UP and arrow, cut line with a break, dashed above the cut.", "edges run on the nosing line (flat on landings) with the walkable side on their left; voids is the upper-floor opening for slabs.openings.", "Checks per rule in the records and info (first-pass, not certification)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: 4 shapes x 4 constructions x heights 2.4/3.2/4.5/7.0 m (riser counts checked by hand); 31 edge cases."],
+    },
+    "balustrade_types.py": {
+        "summary": "A balustrade type: style, heights, posts, gaps and handrail, with NCC barrier limits.",
+        "behaviour": ["Styles: frameless glass, glass and posts, vertical bars, horizontal rails, wires, solid sheet, timber.", "Height on floors (>= 1.0 m) and above the nosing line on stairs (>= 865 mm), openings <= 125 mm.", "Save adds the type to the library (kind balustrade_type)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: all styles and handrails; gaps and heights out of range (FAIL reported)."],
+    },
+    "balustrades.py": {
+        "summary": "Balustrades along curves (slab edges, stair edges, polylines, arcs, closed outlines) with posts, infill, handrails and NCC checks.",
+        "behaviour": ["Follows each path's own z (handrails parallel to the stair pitch) or sits on a level or elevation.", "Posts at corners and at the spacing; curves faceted; offset to the path's left (onto the floor or stair).", "fall enables the climbable-rail check (falls over 4 m)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: closed outlines, offsets, circles, arcs, a spiral helix, 100 m lines; on every stair shape."],
+    },
+    "section_profile.py": {
+        "summary": "A structural section from the Australian catalogue or a custom shape, as a profile record with section properties, a drawing and a sample.",
+        "behaviour": ["Families UB, UC, PFC, SHS, RHS, CHS, EA, UA, glulam, LVL, sawn, concrete rect/round; sizes like '310 40.4', '150x9' or full names.", "Custom I, C, T, L, box, tube, rect or circle from d, b, t, tf, tw (mm).", "Area, Ix, Iy, Zx, Zy, r computed from the outline (sharp corners: Ix about 2.5% under the catalogue's for UBs).", "beams_columns and structure_edit accept the profile record wherever they take a section name. Save adds it to the library (kind profile)."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: 81 cases (every family, custom shape and material, junk sizes); record vs name give identical frames."],
+    },
+    "object_2d.py": {
+        "summary": "Describe a flat thing (or give a picture), press Generate, and a model draws it at real size as lines, fills and hatches.",
+        "behaviour": ["build(rg, math) returns (name, kind, geometry[, style]) with kind line, fill (tone or colour) or hatch (pattern, spacing, angle), in metres.", "Plans are centred on the plane; elevations (starting at y = 0) stand on it; width and depth resize the cached design without a call.", "Only Generate calls the model (setting model2d, else model3d, else Claude Sonnet 5.5); cached by request; saved once to the library as a drawing."],
+        "cost": "About US$0.01-0.02 per design; free from the cache.",
+        "checked": ["2026-10-14: queen bed, hatchback car, person walking, street tree (all first attempt, US$0.067 in all); resize; retry path."],
+    },
+    "symbol.py": {
+        "summary": "Annotation symbols drawn by a model at paper size with text slots, placed and scaled by the drawing scale, optionally as Rhino blocks.",
+        "behaviour": ["build(rg, math, text, label) in paper mm; text slots filled from 'A | A201'; SCALE available for scale bars.", "Placed at points with rotation, scaled by the site's or a chosen drawing scale; north arrows turn to the site's true north.", "block defines or updates 'Alien · symbol · <name>' (paper mm) and replaces its tagged instances; saved to the library as a symbol."],
+        "cost": "About US$0.01 per symbol; free from the cache.",
+        "checked": ["2026-10-14: north arrow, section marker, level marker, scale bar; blocks replaced not duplicated."],
+    },
+    "display_mode.py": {
+        "summary": "Describe a look (or give a reference image) and get a Rhino display mode 'Alien · <name>'.",
+        "behaviour": ["The model returns a JSON look (background, shading, lighting, shadows, edges, silhouettes, curves, isocurves, grid, xray), checked and clamped.", "install copies a built-in base (auto, Shaded, Rendered, Arctic, Technical, Pen, Ghosted) once, then updates the same mode in place; typed RhinoCommon attributes plus .ini edits for the material colour and technical lines. Built-in modes are never changed.", "apply shows it in the active viewport; saved to the library as a display_mode (spec, .ini, capture). Setting modelDisplay picks the model."],
+        "cost": "About US$0.005 per look; free from the cache.",
+        "checked": ["2026-10-14: white clay, blueprint, a look from a reference image; installed on all six bases."],
+    },
+    "views.py": {
+        "summary": "Named views of any geometry: plans and RCPs per level, elevations, sections, isometrics and a perspective, with clipping planes.",
+        "behaviour": ["Presets: plan + elevations, plan + sections, plans, elevations, axonometrics, all, custom ('plan, rcp, north, section x, iso SW, persp').", "With level records: a plan and RCP per level, cut inside each storey (a second back-facing plane limits the depth).", "Wired section lines look to their left (planes along the normal), lettered with plan section marks.", "make creates or replaces the views and clipping planes registered for the same prefix (never someone else's); without it, frames and cuts preview only."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: every preset and custom view; the suite house (14 views); named view and plane properties checked."],
+    },
+    "layout.py": {
+        "summary": "Layout sheets (A4-A0) of named views as locked details at standard scales, with view titles and a title block.",
+        "behaviour": ["Arrangement: auto grid, one per sheet, rows (plans, elevations, sections, 3D, one scale a row).", "Scale: auto (largest standard scale that fits), one scale, or forced (cropped with a note); perspectives NTS.", "Title block: project, drawing, number (counts up across sheets), scale, sheet k of n, date, drawn by.", "make replaces the sheets made with the same prefix; press it again after re-making the views."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: every size, orientation and arrangement; detail scales checked via PageToModelRatio; site_views' views too."],
+    },
+    "exploded_axo.py": {
+        "summary": "Pulls geometry apart into an exploded axonometric, with explosion lines, labels and an isometric named view.",
+        "behaviour": ["Modes: vertical stack by group, height bands, along a vector, radial; spacing; keep the base group; beside the original.", "Dashed explosion lines from outline corners or centres; labels facing the camera.", "view saves (and replaces) a parallel isometric named view from SW/SE/NE/NW."],
+        "cost": "Free.",
+        "checked": ["2026-10-14: trees, flat lists, height bands, vectors, radial, mixed geometry; the suite house in height bands."],
+    },
     "branch_picker.py": {
         "summary": "Passes chosen branches of a data tree through, in the order given; the rest go out of rest.",
         "behaviour": ["Pick forms: '0, 2, 4-6', '-1' (last), '*' (all), 'even', 'odd'.",
@@ -534,6 +624,9 @@ DOC = {
             {"key": "ollamaUrl", "meaning": "Local model server", "default": "http://localhost:11434"},
             {"key": "reasoning", "meaning": "Reasoning effort for describe-a-node", "default": "low (none for local models)"},
             {"key": "panel", "meaning": "\"rhino\" docks the panel in Rhino instead of beside Grasshopper", "default": None},
+            {"key": "model2d", "meaning": "object_2d's and symbol's model", "default": "model3d, else anthropic/claude-sonnet-5.5"},
+            {"key": "modelDisplay", "meaning": "display_mode's model", "default": "anthropic/claude-sonnet-5.5"},
+            {"key": "agentModel", "meaning": "The project agent's model (needs tool calling)", "default": "anthropic/claude-sonnet-5.5"},
             {"key": "theme", "meaning": "Colours of the nodes, canvas text box and panel: {preset, background, text, accent} "
              "(\"#rrggbb\"); written by the panel's settings", "default": "the Alien preset"},
         ],
@@ -596,6 +689,10 @@ DOC = {
             {"kind": "suggestions", "for": "str with suggest=\"vic-address\"", "behaviour": "A list drawn under the text box "
              "follows the typing (Vicmap addresses, about 0.1 s a lookup, from the street number on); arrow keys + Enter or "
              "a click pick one."},
+            {"kind": "pick", "for": "Curve, Brep, Surface, Mesh, SubD, Geometry, Line, Circle, Arc, Rectangle3d, Box (item or list); "
+             "Point3d", "behaviour": "Select in Rhino: click it, pick objects in the viewport (objects already selected count; "
+             "lists end with Enter). The node keeps references ({\"pick\": [ids]}) and re-solves when they move, change or are "
+             "deleted; × clears. A single Point3d is a clicked location."},
             {"kind": "text field", "for": "str, and lists of str/float/int typed as 'a, b, c'", "behaviour": "Edited in place; "
              "the box grows with the text (up to 460 px). Enter, clicking anywhere else (another field too) or scrolling "
              "the canvas commits; Escape cancels."},
@@ -629,6 +726,14 @@ DOC = {
         "hosts": ["Default: a window glued to the side of the Grasshopper editor that moves with it (macOS child window; "
                   "Windows owned window, untested).", "Setting panel: \"rhino\" (or the dock button) makes it a Rhino panel."],
         "header": ["The Alien mark (in the accent)", "Model picker for describe-a-node", "Settings (⚙)", "Dock / undock", "Close"],
+        "modes": ["Node: describe a node, the library and the object library", "Project agent: the project chat"],
+        "agent_view": ["A chat per Grasshopper file that sees the whole canvas (with the user's selection) and the project memory",
+                       "It searches the library first and suggests or places existing nodes; otherwise it has describe-a-node write one",
+                       "It places, wires, sets inputs, edits scripts, deletes nodes, inspects results and captures the viewport to look",
+                       "Tool steps show as chips (with the viewport images it looked at); Stop cancels; New chat keeps the memory",
+                       "Memory: notes it keeps about the project (remember), shown to it every request; ✕ forgets one",
+                       "It won't press Generate buttons (credit) unless the request says so; everything it changes can be undone",
+                       "Starter prompts when the chat is empty; the cost so far for the project"],
         "help_view": ["? in the header; opens by itself the first time when no key is linked; a banner in the main view "
                       "links to it while no key is set",
                       "Connect OpenRouter, step by step: create an account, add credit, create an API key (with a credit limit), "
@@ -650,10 +755,13 @@ DOC = {
                          "outputs and is wired to them",
                          "Requests: every describe request with its outcome and notes",
                          "Inputs (current values), Code (with Open in editor / Show file), Earlier versions (Restore)"],
-        "library_tab": ["Every script with a header, grouped by category, with category chips and counts and a search",
+        "library_tab": ["Start here: blank node, 3D object, 2D object, symbol, material, display mode, views, layout, exploded axo",
+                        "Every script with a header, grouped by category (Create first), with category chips and counts and a search",
                         "suite tag on preloaded nodes; hover shows the path and how the category was decided",
                         "Click a node to place it on the canvas; '+ New blank node'"],
-        "generated_tab": ["Thumbnails of everything the suite generated, with kind chips (Objects, Materials, Drawings) and search",
+        "generated_tab": ["The object library (tab 'Objects'): thumbnails of what the generators made and the building types saved "
+                          "by type nodes, with kind chips (3D objects, 2D objects, Symbols, Materials, Display modes, Drawings, "
+                          "Building types) and search",
                           "A card for the picked asset: size, materials, date, prompt, and actions"],
     },
     "library": {

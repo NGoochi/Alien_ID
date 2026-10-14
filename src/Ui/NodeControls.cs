@@ -9,7 +9,7 @@ using Alien.Scripting;
 
 namespace Alien.Ui
 {
-    public enum ControlKind { None, Slider, Toggle, Button, Choice, Text }
+    public enum ControlKind { None, Slider, Toggle, Button, Choice, Text, Pick }
 
     /// <summary>
     /// A script's run-time tuning for one input's control (its NODE_CONTROLS entry): a slider range that suits the
@@ -51,10 +51,11 @@ namespace Alien.Ui
                     "float" or "int" => ControlKind.Slider,
                     "bool" => d.Button ? ControlKind.Button : ControlKind.Toggle,
                     "str" => d.Choices.Length > 0 ? ControlKind.Choice : ControlKind.Text,
-                    _ => ControlKind.None,
+                    _ => Picks.IsPickable(d) ? ControlKind.Pick : ControlKind.None,
                 };
-            // Lists of plain values are typed as "a, b, c".
-            return d.Access == ParamAccess.List && d.Type is "str" or "float" or "int" ? ControlKind.Text : ControlKind.None;
+            // Lists of plain values are typed as "a, b, c"; lists of geometry are picked in Rhino.
+            if (d.Access == ParamAccess.List && d.Type is "str" or "float" or "int") return ControlKind.Text;
+            return Picks.IsPickable(d) ? ControlKind.Pick : ControlKind.None;
         }
 
         public readonly struct SliderRange

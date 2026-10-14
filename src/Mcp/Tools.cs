@@ -386,6 +386,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                     n.CreateAttributes();
                     n.Attributes.Pivot = Placement(doc, a, false);
                     doc.AddObject(n, false);
+                    doc.UndoUtil.RecordAddObjectEvent("Alien: add " + (a.Value<string>("name") ?? "node"), n);
                     int s = n.SolveStamp;
                     n.SetScript(path);
                     return (n, s);
@@ -410,6 +411,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                 var nick = a.Value<string>("name");
                 if (!string.IsNullOrWhiteSpace(nick)) obj.NickName = nick;
                 doc.AddObject(obj, false);
+                doc.UndoUtil.RecordAddObjectEvent("Alien: add " + obj.Name, obj);
                 (obj as IGH_ActiveObject)?.ExpireSolution(true);
 
                 var r = new JObject { ["id"] = Describe.ShortId(obj), ["type"] = obj.Name };
@@ -533,6 +535,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                         if (parts.Length != 2) throw new ToolException("expected 'src.param>dst.param'");
                         var (srcObj, src) = ResolveParam(doc, parts[0].Trim(), output: true);
                         var (dstObj, dst) = ResolveParam(doc, parts[1].Trim(), output: false);
+                        doc.UndoUtil.RecordWireEvent(disconnect ? "Alien: unwire" : "Alien: wire", dst);
                         if (disconnect) dst.RemoveSource(src);
                         else
                         {
@@ -586,6 +589,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
             {
                 var doc = RequireDoc(false);
                 var objs = ids.Select(id => Resolve(doc, id)).ToList();
+                doc.UndoUtil.RecordRemoveObjectEvent("Alien: delete", objs);
                 doc.RemoveObjects(objs, false);
                 doc.NewSolution(false);
                 return new JObject { ["deleted"] = objs.Count };
@@ -737,6 +741,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                     case AlienComponent al:
                         alien = al;
                         stamp = al.SolveStamp;
+                        doc.UndoUtil.RecordGenericObjectEvent("Alien: set values", al);
                         var unknown = al.SetManualValues(values.Properties().ToDictionary(p => p.Name, p => p.Value));
                         return unknown.Count > 0 ? $"unknown inputs ignored: {string.Join(", ", unknown)}" : null;
 

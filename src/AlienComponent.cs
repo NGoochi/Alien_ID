@@ -159,6 +159,11 @@ namespace Alien
                 "Alien", "Script")
         { }
 
+        /// <summary>For suite nodes on their own toolbar buttons (SuiteComponent).</summary>
+        protected AlienComponent(string name, string nickname, string description, string subCategory)
+            : base(name, nickname, description, "Alien", subCategory)
+        { }
+
         public override Guid ComponentGuid => new Guid("F082B5BE-EC5F-4BC3-9927-7147C53A41F5");
         public override GH_Exposure Exposure => GH_Exposure.primary;
 

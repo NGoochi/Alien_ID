@@ -231,6 +231,12 @@ namespace Alien.Mcp
             }
         }
 
+        /// <summary>Run a tool for the panel's project agent, exactly as an MCP client would (serialised with MCP calls).</summary>
+        internal JObject Invoke(string name, JObject args) => CallTool(name, args);
+
+        /// <summary>A tool's name, description and input schema, or null.</summary>
+        internal Tool Find(string name) => name != null && _tools.TryGetValue(name, out var t) ? t : null;
+
         private JObject CallTool(string name, JObject args)
         {
             if (name == null || !_tools.TryGetValue(name, out var tool))

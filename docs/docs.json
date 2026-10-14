@@ -201,6 +201,21 @@
         "default": null
       },
       {
+        "key": "model2d",
+        "meaning": "object_2d's and symbol's model",
+        "default": "model3d, else anthropic/claude-sonnet-5.5"
+      },
+      {
+        "key": "modelDisplay",
+        "meaning": "display_mode's model",
+        "default": "anthropic/claude-sonnet-5.5"
+      },
+      {
+        "key": "agentModel",
+        "meaning": "The project agent's model (needs tool calling)",
+        "default": "anthropic/claude-sonnet-5.5"
+      },
+      {
         "key": "theme",
         "meaning": "Colours of the nodes, canvas text box and panel: {preset, background, text, accent} (\"#rrggbb\"); written by the panel's settings",
         "default": "the Alien preset"
@@ -303,6 +318,11 @@
         "behaviour": "A list drawn under the text box follows the typing (Vicmap addresses, about 0.1 s a lookup, from the street number on); arrow keys + Enter or a click pick one."
       },
       {
+        "kind": "pick",
+        "for": "Curve, Brep, Surface, Mesh, SubD, Geometry, Line, Circle, Arc, Rectangle3d, Box (item or list); Point3d",
+        "behaviour": "Select in Rhino: click it, pick objects in the viewport (objects already selected count; lists end with Enter). The node keeps references ({\"pick\": [ids]}) and re-solves when they move, change or are deleted; × clears. A single Point3d is a clicked location."
+      },
+      {
         "kind": "text field",
         "for": "str, and lists of str/float/int typed as 'a, b, c'",
         "behaviour": "Edited in place; the box grows with the text (up to 460 px). Enter, clicking anywhere else (another field too) or scrolling the canvas commits; Escape cancels."
@@ -384,6 +404,19 @@
       "Dock / undock",
       "Close"
     ],
+    "modes": [
+      "Node: describe a node, the library and the object library",
+      "Project agent: the project chat"
+    ],
+    "agent_view": [
+      "A chat per Grasshopper file that sees the whole canvas (with the user's selection) and the project memory",
+      "It searches the library first and suggests or places existing nodes; otherwise it has describe-a-node write one",
+      "It places, wires, sets inputs, edits scripts, deletes nodes, inspects results and captures the viewport to look",
+      "Tool steps show as chips (with the viewport images it looked at); Stop cancels; New chat keeps the memory",
+      "Memory: notes it keeps about the project (remember), shown to it every request; ✕ forgets one",
+      "It won't press Generate buttons (credit) unless the request says so; everything it changes can be undone",
+      "Starter prompts when the chat is empty; the cost so far for the project"
+    ],
     "help_view": [
       "? in the header; opens by itself the first time when no key is linked; a banner in the main view links to it while no key is set",
       "Connect OpenRouter, step by step: create an account, add credit, create an API key (with a credit limit), paste it and Link key; buttons open the OpenRouter pages in the browser (only openrouter.ai and the Alien repo are allowed)",
@@ -403,12 +436,13 @@
       "Inputs (current values), Code (with Open in editor / Show file), Earlier versions (Restore)"
     ],
     "library_tab": [
-      "Every script with a header, grouped by category, with category chips and counts and a search",
+      "Start here: blank node, 3D object, 2D object, symbol, material, display mode, views, layout, exploded axo",
+      "Every script with a header, grouped by category (Create first), with category chips and counts and a search",
       "suite tag on preloaded nodes; hover shows the path and how the category was decided",
       "Click a node to place it on the canvas; '+ New blank node'"
     ],
     "generated_tab": [
-      "Thumbnails of everything the suite generated, with kind chips (Objects, Materials, Drawings) and search",
+      "The object library (tab 'Objects'): thumbnails of what the generators made and the building types saved by type nodes, with kind chips (3D objects, 2D objects, Symbols, Materials, Display modes, Drawings, Building types) and search",
       "A card for the picked asset: size, materials, date, prompt, and actions"
     ]
   },
@@ -421,6 +455,11 @@
       "Describe-a-node writes the CATEGORY line itself (the prompt lists each category's hint)."
     ],
     "categories": [
+      {
+        "key": "create",
+        "label": "Create",
+        "hint": "generators: describe something (or show a picture) and a model makes it: 3D objects, 2D drawings, symbols, display modes"
+      },
       {
         "key": "site",
         "label": "Site & context",
@@ -638,6 +677,296 @@
     ],
     "nodes": [
       {
+        "file": "suite/balustrade_types.py",
+        "name": "balustrade_types",
+        "category": "Building elements",
+        "listing": "Balustrade type: frameless glass, glass and posts, vertical bars, horizontal rails, wires, solid sheet or timber, with heights, post spacing, gaps and handrail, checked against the NCC barrier rules.",
+        "summary": "A balustrade type: style, heights, posts, gaps and handrail, with NCC barrier limits.",
+        "behaviour": [
+          "Styles: frameless glass, glass and posts, vertical bars, horizontal rails, wires, solid sheet, timber.",
+          "Height on floors (>= 1.0 m) and above the nosing line on stairs (>= 865 mm), openings <= 125 mm.",
+          "Save adds the type to the library (kind balustrade_type)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: all styles and handrails; gaps and heights out of range (FAIL reported)."
+        ],
+        "inputs": [
+          {
+            "name": "style",
+            "type": "str",
+            "access": "item",
+            "description": "infill",
+            "default": "glass and posts",
+            "options": [
+              "frameless glass",
+              "glass and posts",
+              "vertical bars",
+              "horizontal rails",
+              "wires",
+              "solid sheet",
+              "timber"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "type name (blank: from the style and height)",
+            "default": ""
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "height to the top on floors and landings (m); NCC at least 1.0",
+            "min": 0.5,
+            "max": 2,
+            "default": 1.0
+          },
+          {
+            "name": "stair_height",
+            "type": "float",
+            "access": "item",
+            "description": "height above the nosing line along stair flights (m); NCC at least 0.865; 0 = as height",
+            "min": 0,
+            "max": 2,
+            "default": 0
+          },
+          {
+            "name": "posts",
+            "type": "float",
+            "access": "item",
+            "description": "post spacing (m); frameless glass: the pane width",
+            "min": 0.3,
+            "max": 3,
+            "default": 1.2
+          },
+          {
+            "name": "post",
+            "type": "float",
+            "access": "item",
+            "description": "post size (mm), square; 0 = by style (50, timber 90)",
+            "min": 0,
+            "max": 200,
+            "default": 0
+          },
+          {
+            "name": "gap",
+            "type": "float",
+            "access": "item",
+            "description": "clear gap between bars, rails or wires (mm); NCC at most 125",
+            "min": 10,
+            "max": 300,
+            "default": 100
+          },
+          {
+            "name": "bottom",
+            "type": "float",
+            "access": "item",
+            "description": "gap under the infill (mm); NCC at most 125",
+            "min": 0,
+            "max": 300,
+            "default": 50
+          },
+          {
+            "name": "handrail",
+            "type": "str",
+            "access": "item",
+            "description": "handrail on top",
+            "default": "by style",
+            "options": [
+              "by style",
+              "round 50",
+              "round 42",
+              "square 50",
+              "rect 65x20",
+              "timber 70x42",
+              "none"
+            ]
+          },
+          {
+            "name": "infill",
+            "type": "float",
+            "access": "item",
+            "description": "glass or sheet thickness, bar or rail size (mm); 0 = by style",
+            "min": 0,
+            "max": 60,
+            "default": 0
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the swatch sits (default: world origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "balustrade_type",
+            "type": "str",
+            "access": "item",
+            "description": "balustrade_type record for balustrades"
+          },
+          {
+            "name": "swatch",
+            "type": "Brep",
+            "access": "list",
+            "description": "a sample run: 1.2 m on a floor, then up a stair pitch"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per swatch solid"
+          },
+          {
+            "name": "elevation",
+            "type": "Curve",
+            "access": "list",
+            "description": "the swatch's front outlines"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/balustrades.py",
+        "name": "balustrades",
+        "category": "Building elements",
+        "listing": "Balustrades: posts, glass, bars, rails, wires or sheet and a handrail along slab edges and stair edges, following a stair's pitch, with plan and elevation linework and first-pass NCC barrier checks.",
+        "summary": "Balustrades along curves (slab edges, stair edges, polylines, arcs, closed outlines) with posts, infill, handrails and NCC checks.",
+        "behaviour": [
+          "Follows each path's own z (handrails parallel to the stair pitch) or sits on a level or elevation.",
+          "Posts at corners and at the spacing; curves faceted; offset to the path's left (onto the floor or stair).",
+          "fall enables the climbable-rail check (falls over 4 m)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: closed outlines, offsets, circles, arcs, a spiral helix, 100 m lines; on every stair shape."
+        ],
+        "inputs": [
+          {
+            "name": "path",
+            "type": "Curve",
+            "access": "list",
+            "description": "lines to guard: slab edges, stairs' edges (they keep their slope), polylines, arcs, closed outlines (a sample when unwired)"
+          },
+          {
+            "name": "balustrade_type",
+            "type": "object",
+            "access": "item",
+            "description": "balustrade_type record from balustrade_types (default: glass and posts, 1.0 m)"
+          },
+          {
+            "name": "base",
+            "type": "str",
+            "access": "item",
+            "description": "blank: follow each path's own z (stair edges); else a level name, code or index, or an elevation like 3.2 (m)",
+            "default": ""
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records, for a level named in base (sample levels when unwired)"
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "height override (m), floors and flights alike; 0 = the type's",
+            "min": 0,
+            "max": 2,
+            "default": 0
+          },
+          {
+            "name": "offset",
+            "type": "float",
+            "access": "item",
+            "description": "move off the path (m): + = to its left (stairs' edges: onto the stair), inside a closed outline",
+            "min": -1,
+            "max": 1,
+            "default": 0
+          },
+          {
+            "name": "end_posts",
+            "type": "bool",
+            "access": "item",
+            "description": "posts at the ends of open paths",
+            "default": true
+          },
+          {
+            "name": "fall",
+            "type": "float",
+            "access": "item",
+            "description": "drop beside the balustrade (m), for the NCC climbing check on rails and wires; 0 = not checked",
+            "min": 0,
+            "max": 100,
+            "default": 0
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): places the sample"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "balustrades",
+            "type": "str",
+            "access": "list",
+            "description": "balustrade records"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "posts, infill (glass, bars, rails, wires, sheet), handrails"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan: posts and the balustrade's faces, at each balustrade's lowest point"
+          },
+          {
+            "name": "elevation",
+            "type": "Curve",
+            "access": "list",
+            "description": "front outlines of every part, in place (seen square-on they are the elevation)"
+          },
+          {
+            "name": "handrail",
+            "type": "Curve",
+            "access": "list",
+            "description": "handrail centrelines"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/beams_columns.py",
         "name": "beams_columns",
         "category": "Building elements",
@@ -670,14 +999,14 @@
             "name": "column",
             "type": "str",
             "access": "item",
-            "description": "column section: 310UC96.8, SHS 150x9, CHS 168.3x7.1, GL18 360x360, concrete 450x450 (blank: the material's default)",
+            "description": "column section: 310UC96.8, SHS 150x9, CHS 168.3x7.1, GL18 360x360, concrete 450x450, or a profile record from section_profile (blank: the material's default)",
             "default": ""
           },
           {
             "name": "beam",
             "type": "str",
             "access": "item",
-            "description": "beam section: 410UB53.7, 250PFC, RHS 200x100x6, LVL 360x63, concrete 600x400 (blank: the material's default)",
+            "description": "beam section: 410UB53.7, 250PFC, RHS 200x100x6, LVL 360x63, concrete 600x400, or a profile record from section_profile (blank: the material's default)",
             "default": ""
           },
           {
@@ -1485,6 +1814,112 @@
         ]
       },
       {
+        "file": "suite/display_mode.py",
+        "name": "display_mode",
+        "category": "Create",
+        "listing": "Display mode: describe a look (\"white clay model with soft shadows\", \"blueprint\") or give a reference image, and a model designs a Rhino display mode for it.",
+        "summary": "Describe a look (or give a reference image) and get a Rhino display mode 'Alien · <name>'.",
+        "behaviour": [
+          "The model returns a JSON look (background, shading, lighting, shadows, edges, silhouettes, curves, isocurves, grid, xray), checked and clamped.",
+          "install copies a built-in base (auto, Shaded, Rendered, Arctic, Technical, Pen, Ghosted) once, then updates the same mode in place; typed RhinoCommon attributes plus .ini edits for the material colour and technical lines. Built-in modes are never changed.",
+          "apply shows it in the active viewport; saved to the library as a display_mode (spec, .ini, capture). Setting modelDisplay picks the model."
+        ],
+        "cost": "About US$0.005 per look; free from the cache.",
+        "checked": [
+          "2026-10-14: white clay, blueprint, a look from a reference image; installed on all six bases."
+        ],
+        "inputs": [
+          {
+            "name": "description",
+            "type": "str",
+            "access": "item",
+            "description": "the look you want",
+            "default": "white clay model with soft shadows and thin black edges"
+          },
+          {
+            "name": "image",
+            "type": "str",
+            "access": "item",
+            "description": "reference image (optional): a render or drawing whose look to copy",
+            "default": "",
+            "control": "image"
+          },
+          {
+            "name": "base",
+            "type": "str",
+            "access": "item",
+            "description": "built-in mode to start from (auto = the model's pick)",
+            "default": "auto",
+            "options": [
+              "auto",
+              "Shaded",
+              "Rendered",
+              "Arctic",
+              "Technical",
+              "Pen",
+              "Ghosted"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "mode name: Rhino lists it as 'Alien · <name>' (empty = the model's name)",
+            "default": ""
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "access": "item",
+            "description": "another take on the same request",
+            "min": 0,
+            "max": 50,
+            "default": 0
+          },
+          {
+            "name": "generate",
+            "type": "bool",
+            "access": "item",
+            "description": "ask the model for the look (paid, about US$0.01); a look made before comes back free",
+            "control": "button"
+          },
+          {
+            "name": "install",
+            "type": "bool",
+            "access": "item",
+            "description": "create or update the Rhino display mode 'Alien · <name>' from the look",
+            "control": "button"
+          },
+          {
+            "name": "apply",
+            "type": "bool",
+            "access": "item",
+            "description": "show the mode in the active viewport (installs it first)",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "mode",
+            "type": "str",
+            "access": "item",
+            "description": "the display mode's name in Rhino"
+          },
+          {
+            "name": "spec",
+            "type": "str",
+            "access": "item",
+            "description": "the look as JSON, checked and clamped"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item",
+            "description": "what the look sets, model, cost, install state"
+          }
+        ]
+      },
+      {
         "file": "suite/doors.py",
         "name": "doors",
         "category": "Building elements",
@@ -1597,6 +2032,20 @@
             "type": "Geometry",
             "access": "list",
             "description": "a generated leaf design (e.g. object_3d parts), fitted into each leaf (optional)"
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "door type name for the library (blank: from the family, size and hand)",
+            "default": ""
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
           }
         ],
         "outputs": [
@@ -1675,6 +2124,164 @@
             "type": "Curve",
             "access": "list",
             "description": "on the exterior face: outline and opening lines (dashed V points to the hinges)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/exploded_axo.py",
+        "name": "exploded_axo",
+        "category": "Views & drawings",
+        "listing": "Exploded axo: pulls a building or object apart by group (stacked, by height bands, along a vector or radially), with dashed explosion lines, labels and an isometric named view.",
+        "summary": "Pulls geometry apart into an exploded axonometric, with explosion lines, labels and an isometric named view.",
+        "behaviour": [
+          "Modes: vertical stack by group, height bands, along a vector, radial; spacing; keep the base group; beside the original.",
+          "Dashed explosion lines from outline corners or centres; labels facing the camera.",
+          "view saves (and replaces) a parallel isometric named view from SW/SE/NE/NW."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: trees, flat lists, height bands, vectors, radial, mixed geometry; the suite house in height bands."
+        ],
+        "inputs": [
+          {
+            "name": "geometry",
+            "type": "Geometry",
+            "access": "tree",
+            "description": "parts: one branch per group (e.g. per level), or a flat list exploded part by part; unwired: a sample building"
+          },
+          {
+            "name": "mode",
+            "type": "str",
+            "access": "item",
+            "description": "how the groups move apart",
+            "default": "vertical stack",
+            "options": [
+              "vertical stack",
+              "height bands",
+              "along vector",
+              "radial"
+            ]
+          },
+          {
+            "name": "spacing",
+            "type": "float",
+            "access": "item",
+            "description": "gap opened between neighbouring groups (m); radial: how far the outermost group moves",
+            "min": 0,
+            "max": 50,
+            "default": 3
+          },
+          {
+            "name": "axis",
+            "type": "Vector3d",
+            "access": "item",
+            "description": "direction for 'along vector' (unwired: world Z)"
+          },
+          {
+            "name": "band",
+            "type": "float",
+            "access": "item",
+            "description": "band height for 'height bands' (m)",
+            "min": 0.1,
+            "max": 50,
+            "default": 3.2
+          },
+          {
+            "name": "keep_base",
+            "type": "bool",
+            "access": "item",
+            "description": "the first (lowest) group stays where it is",
+            "default": true
+          },
+          {
+            "name": "beside",
+            "type": "bool",
+            "access": "item",
+            "description": "draw the result beside the original (along +X) instead of over it",
+            "default": false
+          },
+          {
+            "name": "leaders",
+            "type": "str",
+            "access": "item",
+            "description": "dashed explosion lines between where each group was and where it is",
+            "default": "corners",
+            "options": [
+              "none",
+              "corners",
+              "centres"
+            ]
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "a label per group, drawn beside it (in branch order; height bands: bottom up)"
+          },
+          {
+            "name": "angle",
+            "type": "str",
+            "access": "item",
+            "description": "isometric view from",
+            "default": "SW",
+            "options": [
+              "SW",
+              "SE",
+              "NE",
+              "NW"
+            ]
+          },
+          {
+            "name": "display",
+            "type": "str",
+            "access": "item",
+            "description": "display mode saved with the named view",
+            "default": "Shaded"
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "named view name",
+            "default": "Alien axo · Exploded"
+          },
+          {
+            "name": "view",
+            "type": "bool",
+            "access": "item",
+            "description": "create (or replace) a parallel isometric named view framing the result",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "exploded",
+            "type": "object",
+            "access": "item",
+            "description": "the parts moved apart, in the same tree structure as geometry"
+          },
+          {
+            "name": "lines",
+            "type": "Curve",
+            "access": "list",
+            "description": "dashed explosion lines"
+          },
+          {
+            "name": "labels",
+            "type": "Curve",
+            "access": "list",
+            "description": "group labels as curves, facing the view"
+          },
+          {
+            "name": "transforms",
+            "type": "Transform",
+            "access": "list",
+            "description": "the move of each group (branch order; a flat list: part order; height bands: bottom up)"
           },
           {
             "name": "info",
@@ -1860,6 +2467,166 @@
             "type": "Curve",
             "access": "list",
             "description": "dimension linework"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/layout.py",
+        "name": "layout",
+        "category": "Views & drawings",
+        "listing": "Layout: named views on A4-A0 layout sheets at standard scales (1:20, 1:50, 1:100...), with view titles, scale labels and a title block.",
+        "summary": "Layout sheets (A4-A0) of named views as locked details at standard scales, with view titles and a title block.",
+        "behaviour": [
+          "Arrangement: auto grid, one per sheet, rows (plans, elevations, sections, 3D, one scale a row).",
+          "Scale: auto (largest standard scale that fits), one scale, or forced (cropped with a note); perspectives NTS.",
+          "Title block: project, drawing, number (counts up across sheets), scale, sheet k of n, date, drawn by.",
+          "make replaces the sheets made with the same prefix; press it again after re-making the views."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: every size, orientation and arrangement; detail scales checked via PageToModelRatio; site_views' views too."
+        ],
+        "inputs": [
+          {
+            "name": "views",
+            "type": "str",
+            "access": "list",
+            "description": "named views to place (e.g. from views or site_views); unwired: every view the Alien view nodes made"
+          },
+          {
+            "name": "sheet",
+            "type": "str",
+            "access": "item",
+            "description": "sheet size",
+            "default": "A1",
+            "options": [
+              "A4",
+              "A3",
+              "A2",
+              "A1",
+              "A0"
+            ]
+          },
+          {
+            "name": "orientation",
+            "type": "str",
+            "access": "item",
+            "default": "landscape",
+            "options": [
+              "landscape portrait"
+            ]
+          },
+          {
+            "name": "arrange",
+            "type": "str",
+            "access": "item",
+            "description": "auto grid: several views a sheet; rows: plans, elevations, sections and 3D views in rows, one scale a row",
+            "default": "auto grid",
+            "options": [
+              "auto grid",
+              "one per sheet",
+              "rows"
+            ]
+          },
+          {
+            "name": "scale",
+            "type": "str",
+            "access": "item",
+            "description": "auto: the largest standard scale that fits each view",
+            "default": "auto",
+            "options": [
+              "auto",
+              "auto, one scale",
+              "1:20",
+              "1:50",
+              "1:100",
+              "1:200",
+              "1:250",
+              "1:500",
+              "1:1000",
+              "1:2000"
+            ]
+          },
+          {
+            "name": "display",
+            "type": "str",
+            "access": "item",
+            "description": "detail display mode: 'from view' uses each view's own (Technical instead of none or Wireframe), or a Rhino display mode name",
+            "default": "from view"
+          },
+          {
+            "name": "project",
+            "type": "str",
+            "access": "item",
+            "description": "title block: project",
+            "default": "Project"
+          },
+          {
+            "name": "title",
+            "type": "str",
+            "access": "item",
+            "description": "title block: drawing title",
+            "default": "General arrangement"
+          },
+          {
+            "name": "number",
+            "type": "str",
+            "access": "item",
+            "description": "drawing number (counts up over several sheets: A101, A102...)",
+            "default": "A101"
+          },
+          {
+            "name": "date",
+            "type": "str",
+            "access": "item",
+            "description": "date (blank: today)",
+            "default": ""
+          },
+          {
+            "name": "drawn",
+            "type": "str",
+            "access": "item",
+            "description": "drawn by",
+            "default": "Alien"
+          },
+          {
+            "name": "prefix",
+            "type": "str",
+            "access": "item",
+            "description": "sheet name prefix: a press replaces the sheets made with this prefix",
+            "default": "Alien sheet"
+          },
+          {
+            "name": "make",
+            "type": "bool",
+            "access": "item",
+            "description": "create (or replace) the layout pages in Rhino",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "pages",
+            "type": "str",
+            "access": "list",
+            "description": "layout page names"
+          },
+          {
+            "name": "scales",
+            "type": "str",
+            "access": "list",
+            "description": "scale of each placed view, in order ('1:100'; 'NTS' for perspectives)"
+          },
+          {
+            "name": "sheets",
+            "type": "Curve",
+            "access": "list",
+            "description": "preview of the sheets at paper size (1 mm = 1 mm) from the world origin: border, details, view titles, title block"
           },
           {
             "name": "info",
@@ -2247,9 +3014,150 @@
         ]
       },
       {
+        "file": "suite/object_2d.py",
+        "name": "object_2d",
+        "category": "Create",
+        "listing": "2D object: describe a flat thing (or give a picture), press Generate, and a model writes RhinoCommon code that draws it at real size: plan symbols, cars, trees, people, fixtures, patterns.",
+        "summary": "Describe a flat thing (or give a picture), press Generate, and a model draws it at real size as lines, fills and hatches.",
+        "behaviour": [
+          "build(rg, math) returns (name, kind, geometry[, style]) with kind line, fill (tone or colour) or hatch (pattern, spacing, angle), in metres.",
+          "Plans are centred on the plane; elevations (starting at y = 0) stand on it; width and depth resize the cached design without a call.",
+          "Only Generate calls the model (setting model2d, else model3d, else Claude Sonnet 5.5); cached by request; saved once to the library as a drawing."
+        ],
+        "cost": "About US$0.01-0.02 per design; free from the cache.",
+        "checked": [
+          "2026-10-14: queen bed, hatchback car, person walking, street tree (all first attempt, US$0.067 in all); resize; retry path."
+        ],
+        "inputs": [
+          {
+            "name": "thing",
+            "type": "str",
+            "access": "item",
+            "description": "what to draw, and in plan or elevation",
+            "default": "a queen bed with pillows, in plan"
+          },
+          {
+            "name": "style",
+            "type": "str",
+            "access": "item",
+            "description": "drawing style (optional): fills, hatches, how much detail",
+            "default": ""
+          },
+          {
+            "name": "image",
+            "type": "str",
+            "access": "item",
+            "description": "reference image: drop one on the node, or a file path or URL (optional)",
+            "default": "",
+            "control": "image"
+          },
+          {
+            "name": "detail",
+            "type": "str",
+            "access": "item",
+            "description": "how much to draw",
+            "default": "detailed",
+            "options": [
+              "simple",
+              "detailed"
+            ]
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "access": "item",
+            "description": "another design for the same request",
+            "min": 0,
+            "max": 50,
+            "default": 0
+          },
+          {
+            "name": "generate",
+            "type": "bool",
+            "access": "item",
+            "description": "draw it with the model (paid); a design drawn before comes back free from the cache",
+            "control": "button"
+          },
+          {
+            "name": "width",
+            "type": "float",
+            "access": "item",
+            "description": "width (m, along X); 0 = as drawn",
+            "min": 0,
+            "max": 30,
+            "default": 0
+          },
+          {
+            "name": "depth",
+            "type": "float",
+            "access": "item",
+            "description": "depth (m, along Y: length in plan, height in elevation); 0 = as drawn",
+            "min": 0,
+            "max": 30,
+            "default": 0
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where it goes (default: world XY at the origin; an XZ plane stands an elevation up)"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "curves",
+            "type": "Curve",
+            "access": "list",
+            "description": "all linework, outlines of fills and hatches included"
+          },
+          {
+            "name": "fills",
+            "type": "Brep",
+            "access": "list",
+            "description": "filled areas (planar)"
+          },
+          {
+            "name": "hatches",
+            "type": "Geometry",
+            "access": "list",
+            "description": "a solid hatch per fill and the pattern hatches, for baking"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "preview colour per fill"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "element name per curve"
+          },
+          {
+            "name": "size",
+            "type": "str",
+            "access": "item",
+            "description": "width x depth (m)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item",
+            "description": "model, cost, attempts, elements"
+          },
+          {
+            "name": "code",
+            "type": "str",
+            "access": "item",
+            "description": "the generated build code"
+          }
+        ]
+      },
+      {
         "file": "suite/object_3d.py",
         "name": "object_3d",
-        "category": "Massing & objects",
+        "category": "Create",
         "listing": "3D object: describe a thing (or give a picture), press Generate, and a model writes RhinoCommon code that builds it from solids at real-world size.",
         "summary": "Describe a thing (or give a picture), press Generate, and a model writes RhinoCommon code that builds it from solids at real size, with part names and materials. Width, depth and height resize the built design.",
         "behaviour": [
@@ -2391,6 +3299,321 @@
             "type": "str",
             "access": "item",
             "description": "the generated build code"
+          }
+        ]
+      },
+      {
+        "file": "suite/roof_types.py",
+        "name": "roof_types",
+        "category": "Building elements",
+        "listing": "Roof type: a roof build-up (metal deck, concrete or terracotta tiles, slate, membrane on concrete, green roof... or your own layers) with the pitches it allows, for the roofs node.",
+        "summary": "A roof build-up as a roof_type record: presets or custom layers, the pitch range the covering allows and a roofing colour.",
+        "behaviour": [
+          "Presets: metal deck, metal deck low pitch, concrete tile, terracotta tile, slate, membrane on concrete, green roof, custom.",
+          "roofs warns when the pitch is outside the covering's range.",
+          "Save adds the type to the library (kind roof_type)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: every preset and colour; custom layers."
+        ],
+        "inputs": [
+          {
+            "name": "preset",
+            "type": "str",
+            "access": "item",
+            "description": "a common roof build-up, or custom (from layers)",
+            "default": "metal deck",
+            "options": [
+              "metal deck",
+              "metal deck low pitch",
+              "concrete tile",
+              "terracotta tile",
+              "slate",
+              "membrane on concrete",
+              "green roof",
+              "custom"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "type name (blank: the preset's)",
+            "default": ""
+          },
+          {
+            "name": "layers",
+            "type": "str",
+            "access": "list",
+            "description": "layers top -> bottom, thickness in mm: 'metal roofing 20; battens 40; insulation 55; rafters 140*' (* = structure). Replaces the preset's layers when given",
+            "default": ""
+          },
+          {
+            "name": "colour",
+            "type": "str",
+            "access": "item",
+            "description": "colour of the roofing (the top layer)",
+            "default": "as built",
+            "options": [
+              "as built",
+              "charcoal",
+              "dark grey",
+              "mid grey",
+              "light grey",
+              "off-white",
+              "red",
+              "terracotta",
+              "green",
+              "blue"
+            ]
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the swatch sits (default: world origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "roof_type",
+            "type": "str",
+            "access": "item",
+            "description": "roof_type record for roofs"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "layer names, top first"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "layer materials"
+          },
+          {
+            "name": "thicknesses",
+            "type": "float",
+            "access": "list",
+            "description": "layer thicknesses (m)"
+          },
+          {
+            "name": "total",
+            "type": "float",
+            "access": "item",
+            "description": "overall thickness, square to the roof (m)"
+          },
+          {
+            "name": "swatch",
+            "type": "Brep",
+            "access": "list",
+            "description": "a stepped sample, one solid per layer"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per swatch solid"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/roofs.py",
+        "name": "roofs",
+        "category": "Building elements",
+        "listing": "Roofs: hip, gable, dutch gable, skillion or flat roofs over wall outlines at a level, with eaves and verge overhangs, layered by a roof type; ridges, hips, valleys, eaves, a roof plan and records.",
+        "summary": "Hip, gable, dutch gable, skillion or flat roofs over closed outlines on a level, with layered solids, trims and roof-plan linework.",
+        "behaviour": [
+          "Hip, gable and dutch gable use a weighted straight skeleton, so L, T, U, concave and rotated outlines work; flat and skillion keep exact curves.",
+          "pitch, eaves overhang, gable overhang, ridge direction (auto = along the long side, x, y), flip for skillion/flat falls, fascia depth.",
+          "Outputs: solids (one per layer per roof part, then fascias, barges, gutters, gablets), ridges, hips, valleys, eaves, a roof plan with the dashed wall line and fall arrows, roof records with faces (pitch, aspect from true north, area)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: 5 forms x 12 outlines x 3 pitches (156/156 valid closed solids, volumes and slope areas checked); odd outlines; every option."
+        ],
+        "inputs": [
+          {
+            "name": "outline",
+            "type": "Curve",
+            "access": "list",
+            "description": "wall lines to roof over, closed, one roof each (a 10 x 7 m sample room when unwired)"
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (sample levels when unwired)"
+          },
+          {
+            "name": "level",
+            "type": "str",
+            "access": "item",
+            "description": "level the roof sits on (the top of the walls): name, code or index (blank: the top level)",
+            "default": ""
+          },
+          {
+            "name": "form",
+            "type": "str",
+            "access": "item",
+            "description": "roof form",
+            "default": "hip",
+            "options": [
+              "hip",
+              "gable",
+              "dutch gable",
+              "skillion",
+              "flat"
+            ]
+          },
+          {
+            "name": "pitch",
+            "type": "float",
+            "access": "item",
+            "description": "pitch (degrees); flat roofs: the fall written on the plan (5 or less)",
+            "min": 0,
+            "max": 75,
+            "default": 22.5
+          },
+          {
+            "name": "overhang",
+            "type": "float",
+            "access": "item",
+            "description": "eaves overhang past the wall line (m)",
+            "min": 0,
+            "max": 3,
+            "default": 0.6
+          },
+          {
+            "name": "gable_overhang",
+            "type": "float",
+            "access": "item",
+            "description": "verge overhang at gable ends and skillion sides (m)",
+            "min": 0,
+            "max": 3,
+            "default": 0.3
+          },
+          {
+            "name": "ridge",
+            "type": "str",
+            "access": "item",
+            "description": "ridge direction for gable, dutch gable, skillion and flat: auto = along the long side; skillion and flat fall across it",
+            "default": "auto",
+            "options": [
+              "auto",
+              "x",
+              "y"
+            ]
+          },
+          {
+            "name": "flip",
+            "type": "bool",
+            "access": "item",
+            "description": "skillion and flat: fall the other way",
+            "default": false
+          },
+          {
+            "name": "fascia",
+            "type": "float",
+            "access": "item",
+            "description": "fascia and barge board depth (m), with gutters on the eaves; 0 = none",
+            "min": 0,
+            "max": 0.6,
+            "default": 0.2
+          },
+          {
+            "name": "roof_type",
+            "type": "object",
+            "access": "item",
+            "description": "roof_types record (default: metal deck)"
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): x/y and placement, north for face aspects, scale for plan text"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "roofs",
+            "type": "str",
+            "access": "list",
+            "description": "roof records"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "one solid per layer per roof part, then fascias, barge boards, gutters and gablets"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "material per solid"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "ridges",
+            "type": "Curve",
+            "access": "list",
+            "description": "ridge lines (and a skillion's high edge)"
+          },
+          {
+            "name": "hips",
+            "type": "Curve",
+            "access": "list",
+            "description": "hip lines"
+          },
+          {
+            "name": "valleys",
+            "type": "Curve",
+            "access": "list",
+            "description": "valley lines"
+          },
+          {
+            "name": "eaves",
+            "type": "Curve",
+            "access": "list",
+            "description": "roof edges: eaves, verges (gable rakes) and gablet bases"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "roof plan: eaves outline, ridges, hips, valleys, the wall line dashed, fall arrows with the pitch"
+          },
+          {
+            "name": "area",
+            "type": "float",
+            "access": "list",
+            "description": "area of each roof on the slope (m2)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
           }
         ]
       },
@@ -2638,6 +3861,205 @@
         ]
       },
       {
+        "file": "suite/section_profile.py",
+        "name": "section_profile",
+        "category": "Building elements",
+        "listing": "Section profile: a structural section from the Australian catalogue (UB, UC, PFC, SHS, RHS, CHS, angles, glulam, LVL, sawn, concrete) or a custom shape, drawn at true size with dimensions, as a profile record for beams and columns.",
+        "summary": "A structural section from the Australian catalogue or a custom shape, as a profile record with section properties, a drawing and a sample.",
+        "behaviour": [
+          "Families UB, UC, PFC, SHS, RHS, CHS, EA, UA, glulam, LVL, sawn, concrete rect/round; sizes like '310 40.4', '150x9' or full names.",
+          "Custom I, C, T, L, box, tube, rect or circle from d, b, t, tf, tw (mm).",
+          "Area, Ix, Iy, Zx, Zy, r computed from the outline (sharp corners: Ix about 2.5% under the catalogue's for UBs).",
+          "beams_columns and structure_edit accept the profile record wherever they take a section name. Save adds it to the library (kind profile)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: 81 cases (every family, custom shape and material, junk sizes); record vs name give identical frames."
+        ],
+        "inputs": [
+          {
+            "name": "family",
+            "type": "str",
+            "access": "item",
+            "description": "catalogue family, or custom (shape and sizes below)",
+            "default": "UB",
+            "options": [
+              "UB",
+              "UC",
+              "PFC",
+              "SHS",
+              "RHS",
+              "CHS",
+              "EA",
+              "UA",
+              "glulam",
+              "LVL",
+              "sawn",
+              "concrete rect",
+              "concrete round",
+              "custom"
+            ]
+          },
+          {
+            "name": "size",
+            "type": "str",
+            "access": "item",
+            "description": "size in the family: UB 310 40.4, UC 250 72.9, PFC 250, SHS 150x9, RHS 200x100x6, CHS 168.3x7.1, EA 75x6, UA 100x75x8, glulam 360x85 (or GL17 360x85), LVL 300x63, sawn 90x45 (or F17 190x45), concrete 600x400, round 600; or a full name like 310UB40.4 (blank: a common size; info lists the family's sizes)",
+            "default": ""
+          },
+          {
+            "name": "shape",
+            "type": "str",
+            "access": "item",
+            "description": "custom: the section shape",
+            "default": "I",
+            "options": [
+              "I",
+              "C",
+              "T",
+              "L",
+              "box",
+              "tube",
+              "rect",
+              "circle"
+            ]
+          },
+          {
+            "name": "d",
+            "type": "float",
+            "access": "item",
+            "description": "custom: depth (mm)",
+            "min": 10,
+            "max": 2000,
+            "default": 300
+          },
+          {
+            "name": "b",
+            "type": "float",
+            "access": "item",
+            "description": "custom: width (mm; circle and tube: ignored)",
+            "min": 10,
+            "max": 2000,
+            "default": 150
+          },
+          {
+            "name": "t",
+            "type": "float",
+            "access": "item",
+            "description": "custom: wall thickness of box, tube and L (mm)",
+            "min": 1,
+            "max": 100,
+            "default": 6
+          },
+          {
+            "name": "tf",
+            "type": "float",
+            "access": "item",
+            "description": "custom: flange thickness of I, C and T (mm)",
+            "min": 1,
+            "max": 100,
+            "default": 10
+          },
+          {
+            "name": "tw",
+            "type": "float",
+            "access": "item",
+            "description": "custom: web thickness of I, C and T (mm)",
+            "min": 1,
+            "max": 100,
+            "default": 6
+          },
+          {
+            "name": "material",
+            "type": "str",
+            "access": "item",
+            "description": "custom: material (sets kg/m and colour)",
+            "default": "steel",
+            "options": [
+              "steel",
+              "aluminium",
+              "timber",
+              "concrete"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "profile name (blank: the catalogue name, or one made from the custom sizes)",
+            "default": ""
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the section drawing lies and the sample stands (default: world XY at the origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "profile",
+            "type": "str",
+            "access": "item",
+            "description": "profile record: wire into beams_columns' column or beam, or structure_edit's section"
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "profile name"
+          },
+          {
+            "name": "outline",
+            "type": "Curve",
+            "access": "list",
+            "description": "the section at true size on the plane: outer edge, then holes"
+          },
+          {
+            "name": "fill",
+            "type": "Brep",
+            "access": "list",
+            "description": "the section as a flat surface (for previews)"
+          },
+          {
+            "name": "hatch",
+            "type": "object",
+            "access": "item",
+            "description": "solid hatch of the section (for baking)"
+          },
+          {
+            "name": "dims",
+            "type": "Curve",
+            "access": "list",
+            "description": "dimension lines, ticks and figures (mm) and the name label"
+          },
+          {
+            "name": "sample",
+            "type": "Brep",
+            "access": "list",
+            "description": "a 1 m length standing beside the drawing"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per sample solid (also suits the fill)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/site_views.py",
         "name": "site_views",
         "category": "Views & drawings",
@@ -2739,6 +4161,662 @@
         ]
       },
       {
+        "file": "suite/slab_types.py",
+        "name": "slab_types",
+        "category": "Building elements",
+        "listing": "Slab type: a floor build-up (concrete, post-tensioned, hollowcore, CLT, timber joists, waffle, steel deck... or your own layers) with a finish and a soffit, for the slabs node.",
+        "summary": "A floor build-up as a slab_type record: presets or layers typed top to bottom in mm, a finish and a soffit.",
+        "behaviour": [
+          "Presets: concrete 200, post-tensioned 250, hollowcore 200 + topping, CLT 180 + screed, timber joist floor, waffle 300, steel deck composite 150, slab on ground 100, custom.",
+          "Layers 'screed 50; CLT 180*; plasterboard ceiling 13' (mm, cm and m work; * = structure) replace the preset's.",
+          "Save adds the type to the library (kind slab_type)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: every preset, finish and soffit; junk, negative and oversize layers."
+        ],
+        "inputs": [
+          {
+            "name": "preset",
+            "type": "str",
+            "access": "item",
+            "description": "a common floor build-up, or custom (from layers)",
+            "default": "concrete 200",
+            "options": [
+              "concrete 200",
+              "post-tensioned 250",
+              "hollowcore 200 + topping",
+              "CLT 180 + screed",
+              "timber joist floor",
+              "waffle 300",
+              "steel deck composite 150",
+              "slab on ground 100",
+              "custom"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "type name (blank: from the preset, finish and soffit)",
+            "default": ""
+          },
+          {
+            "name": "layers",
+            "type": "str",
+            "access": "list",
+            "description": "layers top -> bottom, thickness in mm: 'screed 50; CLT 180*; plasterboard ceiling 13' (* = structure). Replaces the preset's layers when given",
+            "default": ""
+          },
+          {
+            "name": "finish",
+            "type": "str",
+            "access": "item",
+            "description": "floor finish laid on top",
+            "default": "none",
+            "options": [
+              "none",
+              "polished concrete",
+              "tiles",
+              "timber boards",
+              "carpet",
+              "vinyl",
+              "screed",
+              "raised floor"
+            ]
+          },
+          {
+            "name": "soffit",
+            "type": "str",
+            "access": "item",
+            "description": "underside: as built keeps the build-up's own; the others replace its ceiling",
+            "default": "as built",
+            "options": [
+              "as built",
+              "exposed",
+              "plasterboard",
+              "suspended ceiling",
+              "render",
+              "acoustic panels"
+            ]
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the swatch sits (default: world origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "slab_type",
+            "type": "str",
+            "access": "item",
+            "description": "slab_type record for slabs"
+          },
+          {
+            "name": "names",
+            "type": "str",
+            "access": "list",
+            "description": "layer names, top first"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "layer materials"
+          },
+          {
+            "name": "thicknesses",
+            "type": "float",
+            "access": "list",
+            "description": "layer thicknesses (m)"
+          },
+          {
+            "name": "total",
+            "type": "float",
+            "access": "item",
+            "description": "overall thickness (m)"
+          },
+          {
+            "name": "swatch",
+            "type": "Brep",
+            "access": "list",
+            "description": "a stepped sample, one solid per layer"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per swatch solid"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/slabs.py",
+        "name": "slabs",
+        "category": "Building elements",
+        "listing": "Slabs: layered floor slabs at chosen levels from closed outlines, with an edge offset, openings (stair voids, shafts) and setdowns; slab records, layer solids, edges and plan.",
+        "summary": "Layered slabs at chosen levels from closed outlines, with openings, as slab records, solids, edges and plan linework.",
+        "behaviour": [
+          "which: floors (all but the top level, the roof's) | all | suspended | indices '1-3' | names or codes.",
+          "Edge offset, setdown, one slab type per chosen level (the last repeats); outlines at several heights go to their own level.",
+          "Openings cut at their own level (stair voids) or through every slab when sketched at the outline's height (through = auto); overlapping openings merge, crossing ones notch.",
+          "edges output (outer and void edges at the top) feeds balustrades; area is net m2."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: holes, notches, splits, circles, concave outlines, every which keyword, offsets checked by hand, stair voids from the stairs node."
+        ],
+        "inputs": [
+          {
+            "name": "outline",
+            "type": "Curve",
+            "access": "list",
+            "description": "slab outlines, closed (a 10 x 7 m sample room when unwired); outlines at several heights each go to the level at their height"
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (sample levels when unwired)"
+          },
+          {
+            "name": "which",
+            "type": "str",
+            "access": "item",
+            "description": "levels to slab: floors (all but the top level, which is the roof's), all, suspended (not the lowest or top), indices from 0 = lowest ('1-3'), names or codes ('L01, Level 2')",
+            "default": "floors"
+          },
+          {
+            "name": "slab_type",
+            "type": "object",
+            "access": "list",
+            "description": "slab_types record(s), one per chosen level from the lowest (the last repeats; default: concrete 200)"
+          },
+          {
+            "name": "offset",
+            "type": "float",
+            "access": "item",
+            "description": "edge offset from the outline (m): + outward (e.g. to the outer face of the walls), - inward",
+            "min": -2,
+            "max": 5,
+            "default": 0
+          },
+          {
+            "name": "openings",
+            "type": "Curve",
+            "access": "list",
+            "description": "holes, closed curves: stair voids (stairs.voids), shafts, atria; ones crossing the edge cut notches"
+          },
+          {
+            "name": "through",
+            "type": "str",
+            "access": "item",
+            "description": "which slabs an opening cuts: its level = the level at the curve's height; auto = that, unless it lies at the outline's height (a sketch: then every slab)",
+            "default": "auto",
+            "options": [
+              "auto",
+              "every level",
+              "its level"
+            ]
+          },
+          {
+            "name": "setdown",
+            "type": "float",
+            "access": "item",
+            "description": "top of slab below the level (m), e.g. 0.05 for a wet area",
+            "min": 0,
+            "max": 1,
+            "default": 0
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): places the sample outline"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "slabs",
+            "type": "str",
+            "access": "list",
+            "description": "slab records"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "one solid per layer per slab"
+          },
+          {
+            "name": "materials",
+            "type": "str",
+            "access": "list",
+            "description": "material per solid"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "edges",
+            "type": "Curve",
+            "access": "list",
+            "description": "slab edges at the top: outer edges and void edges (for balustrades)"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan linework at the top: slab edges and a cross in each void"
+          },
+          {
+            "name": "area",
+            "type": "float",
+            "access": "list",
+            "description": "net area of each slab (m2)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/stair_types.py",
+        "name": "stair_types",
+        "category": "Building elements",
+        "listing": "Stair type: how a stair is built (concrete in-situ, precast, steel stringers, timber), its riser and going targets, treads, nosings, stringers, open or closed risers, and the NCC limits its use sets.",
+        "summary": "How a stair is built, as a stair_type record with Australian NCC limits for public or private use.",
+        "behaviour": [
+          "Construction: concrete in-situ, steel stringers, timber, precast; riser and going targets (mm), tread, nosing, waist, stringer, open or closed risers.",
+          "NCC first-pass limits: risers 115-190 mm, goings 250-355 public / 240-355 private, 2R+G 550-700, 2-18 risers a flight, landings >= 750 mm, open-riser gaps <= 125 mm.",
+          "Save adds the type to the library (kind stair_type)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: every construction and use, out-of-range targets (FAIL reported)."
+        ],
+        "inputs": [
+          {
+            "name": "construction",
+            "type": "str",
+            "access": "item",
+            "description": "how the stair is built",
+            "default": "concrete in-situ",
+            "options": [
+              "concrete in-situ",
+              "steel stringers",
+              "timber",
+              "precast"
+            ]
+          },
+          {
+            "name": "use",
+            "type": "str",
+            "access": "item",
+            "description": "sets the NCC limits: public / commercial (Vol 1) or private / domestic (Vol 2)",
+            "default": "public / commercial",
+            "options": [
+              "public / commercial",
+              "private / domestic"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "type name (blank: from the construction and sizes)",
+            "default": ""
+          },
+          {
+            "name": "riser",
+            "type": "float",
+            "access": "item",
+            "description": "target riser (mm): each stair rounds it to a whole number of risers; NCC 115–190",
+            "min": 100,
+            "max": 250,
+            "default": 175
+          },
+          {
+            "name": "going",
+            "type": "float",
+            "access": "item",
+            "description": "going (mm), nosing to nosing; NCC 250–355 public, 240–355 private",
+            "min": 150,
+            "max": 450,
+            "default": 280
+          },
+          {
+            "name": "tread",
+            "type": "float",
+            "access": "item",
+            "description": "tread thickness (mm): steel and timber",
+            "min": 5,
+            "max": 100,
+            "default": 40
+          },
+          {
+            "name": "nosing",
+            "type": "float",
+            "access": "item",
+            "description": "nosing projection (mm): steel and timber",
+            "min": 0,
+            "max": 50,
+            "default": 20
+          },
+          {
+            "name": "waist",
+            "type": "float",
+            "access": "item",
+            "description": "waist and landing slab thickness (mm): concrete and precast",
+            "min": 80,
+            "max": 400,
+            "default": 175
+          },
+          {
+            "name": "stringer",
+            "type": "str",
+            "access": "item",
+            "description": "stringer depth x thickness in mm, e.g. '250x12' (blank: steel 250x12 plate, timber 290x45)",
+            "default": ""
+          },
+          {
+            "name": "risers",
+            "type": "str",
+            "access": "item",
+            "description": "riser boards (steel and timber; concrete steps are always closed)",
+            "default": "closed",
+            "options": [
+              "closed",
+              "open"
+            ]
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "where the swatch sits (default: world origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "stair_type",
+            "type": "str",
+            "access": "item",
+            "description": "stair_type record for stairs"
+          },
+          {
+            "name": "swatch",
+            "type": "Brep",
+            "access": "list",
+            "description": "four steps and a landing edge, 1 m wide"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per swatch solid"
+          },
+          {
+            "name": "section",
+            "type": "Curve",
+            "access": "list",
+            "description": "the swatch cut through its middle (stringers seen beyond)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/stairs.py",
+        "name": "stairs",
+        "category": "Building elements",
+        "listing": "Stairs: straight, L (quarter landing), U (half landing) or spiral stairs between two levels, with risers and going fitted to the floor-to-floor height, first-pass NCC checks, plan symbols, balustrade edges and the floor void.",
+        "summary": "Straight, L, U or spiral stairs between two levels from base lines, with NCC checks, solids, plan, balustrade edges and the floor void.",
+        "behaviour": [
+          "Risers are fitted to the floor-to-floor height; flights over 18 risers get landings; L and U split at the turn.",
+          "Plan: treads, walking line with UP and arrow, cut line with a break, dashed above the cut.",
+          "edges run on the nosing line (flat on landings) with the walkable side on their left; voids is the upper-floor opening for slabs.openings.",
+          "Checks per rule in the records and info (first-pass, not certification)."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: 4 shapes x 4 constructions x heights 2.4/3.2/4.5/7.0 m (riser counts checked by hand); 31 edge cases."
+        ],
+        "inputs": [
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (sample: 3 storeys at 3.2 m)"
+          },
+          {
+            "name": "from_level",
+            "type": "str",
+            "access": "item",
+            "description": "lower level: name, code or index (blank: the lowest)",
+            "default": ""
+          },
+          {
+            "name": "to_level",
+            "type": "str",
+            "access": "item",
+            "description": "upper level: name, code or index (blank: the level above)",
+            "default": ""
+          },
+          {
+            "name": "height",
+            "type": "float",
+            "access": "item",
+            "description": "floor-to-floor height (m); 0 = from the levels",
+            "min": 0,
+            "max": 12,
+            "default": 0
+          },
+          {
+            "name": "base",
+            "type": "Curve",
+            "access": "list",
+            "description": "base lines: each one's start is the foot of a stair, its direction the way up (sample: a line along X at the site origin)"
+          },
+          {
+            "name": "align",
+            "type": "str",
+            "access": "item",
+            "description": "where the base line runs across the stair (looking up)",
+            "default": "centre",
+            "options": [
+              "centre",
+              "left edge",
+              "right edge"
+            ]
+          },
+          {
+            "name": "shape",
+            "type": "str",
+            "access": "item",
+            "description": "stair shape",
+            "default": "straight",
+            "options": [
+              "straight",
+              "L (quarter landing)",
+              "U (half landing)",
+              "spiral"
+            ]
+          },
+          {
+            "name": "turn",
+            "type": "str",
+            "access": "item",
+            "description": "L, U and spiral: the way the stair turns going up",
+            "default": "left",
+            "options": [
+              "left",
+              "right"
+            ]
+          },
+          {
+            "name": "width",
+            "type": "float",
+            "access": "item",
+            "description": "stair width (m): tread length; stringers sit outside it",
+            "min": 0.5,
+            "max": 4,
+            "default": 1.2
+          },
+          {
+            "name": "stair_type",
+            "type": "object",
+            "access": "item",
+            "description": "stair_type record from stair_types (default: concrete in-situ, public, 175/280)"
+          },
+          {
+            "name": "landing",
+            "type": "float",
+            "access": "item",
+            "description": "landing depth (m) in the walking direction; 0 = the stair width (at least 0.75)",
+            "min": 0,
+            "max": 5,
+            "default": 0
+          },
+          {
+            "name": "split",
+            "type": "int",
+            "access": "item",
+            "description": "L and U: risers in the first flight (0 = half)",
+            "min": 0,
+            "max": 40,
+            "default": 0
+          },
+          {
+            "name": "well",
+            "type": "float",
+            "access": "item",
+            "description": "U: gap between the two flights; spiral: centre column radius (m)",
+            "min": 0,
+            "max": 2,
+            "default": 0.1
+          },
+          {
+            "name": "sides",
+            "type": "str",
+            "access": "item",
+            "description": "which stair sides get balustrade edges (the upper floor's void edges always do)",
+            "default": "both",
+            "options": [
+              "both",
+              "inner",
+              "outer",
+              "none"
+            ]
+          },
+          {
+            "name": "cut",
+            "type": "float",
+            "access": "item",
+            "description": "plan cut height above the lower level (m): treads above it are dashed",
+            "min": 0.2,
+            "max": 3,
+            "default": 1.0
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record (optional): drawing scale for the plan symbols; places the sample base line"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "stairs",
+            "type": "str",
+            "access": "list",
+            "description": "stair records"
+          },
+          {
+            "name": "solids",
+            "type": "Brep",
+            "access": "list",
+            "description": "flights (waist slab, or treads, risers and stringers), landings"
+          },
+          {
+            "name": "colours",
+            "type": "Color",
+            "access": "list",
+            "description": "colour per solid"
+          },
+          {
+            "name": "plan",
+            "type": "Curve",
+            "access": "list",
+            "description": "plan at the lower level: treads, walking line with UP and arrow, cut line with break; above the cut dashed"
+          },
+          {
+            "name": "edges",
+            "type": "Curve",
+            "access": "list",
+            "description": "balustrade lines: open stair sides on the nosing line (flat on landings), and the upper floor's void edges; the walkable side is on each curve's left"
+          },
+          {
+            "name": "voids",
+            "type": "Curve",
+            "access": "list",
+            "description": "floor opening at the upper level, closed: for the slabs node's openings"
+          },
+          {
+            "name": "risers",
+            "type": "int",
+            "access": "list",
+            "description": "risers per stair"
+          },
+          {
+            "name": "riser",
+            "type": "float",
+            "access": "list",
+            "description": "riser height per stair (mm)"
+          },
+          {
+            "name": "going",
+            "type": "float",
+            "access": "list",
+            "description": "going per stair (mm)"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/structure_edit.py",
         "name": "structure_edit",
         "category": "Building elements",
@@ -2786,7 +4864,7 @@
             "name": "section",
             "type": "str",
             "access": "item",
-            "description": "resize to: a section name (460UB67.1, SHS 200x9, GL18 450x135), or up / down a size",
+            "description": "resize to: a section name (460UB67.1, SHS 200x9, GL18 450x135), a profile record from section_profile, or up / down a size",
             "default": ""
           },
           {
@@ -2860,6 +4938,156 @@
             "name": "info",
             "type": "str",
             "access": "item"
+          }
+        ]
+      },
+      {
+        "file": "suite/symbol.py",
+        "name": "symbol",
+        "category": "Create",
+        "listing": "Symbol: describe an annotation symbol (north arrow, section marker, level marker, door tag, grid bubble, revision cloud, scale bar, logo) and a model draws it at paper size with text slots, placed at the drawing scale.",
+        "summary": "Annotation symbols drawn by a model at paper size with text slots, placed and scaled by the drawing scale, optionally as Rhino blocks.",
+        "behaviour": [
+          "build(rg, math, text, label) in paper mm; text slots filled from 'A | A201'; SCALE available for scale bars.",
+          "Placed at points with rotation, scaled by the site's or a chosen drawing scale; north arrows turn to the site's true north.",
+          "block defines or updates 'Alien · symbol · <name>' (paper mm) and replaces its tagged instances; saved to the library as a symbol."
+        ],
+        "cost": "About US$0.01 per symbol; free from the cache.",
+        "checked": [
+          "2026-10-14: north arrow, section marker, level marker, scale bar; blocks replaced not duplicated."
+        ],
+        "inputs": [
+          {
+            "name": "description",
+            "type": "str",
+            "access": "item",
+            "description": "the annotation symbol to draw",
+            "default": "north arrow: a circle with a solid arrow and a bold N"
+          },
+          {
+            "name": "text",
+            "type": "str",
+            "access": "item",
+            "description": "text for the symbol, values separated by | (e.g. A | A201); empty = the sample text",
+            "default": ""
+          },
+          {
+            "name": "image",
+            "type": "str",
+            "access": "item",
+            "description": "reference image: drop one on the node, or a file path or URL (optional)",
+            "default": "",
+            "control": "image"
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "access": "item",
+            "description": "another design for the same request",
+            "min": 0,
+            "max": 50,
+            "default": 0
+          },
+          {
+            "name": "generate",
+            "type": "bool",
+            "access": "item",
+            "description": "draw it with the model (paid); a design drawn before comes back free from the cache",
+            "control": "button"
+          },
+          {
+            "name": "site",
+            "type": "object",
+            "access": "item",
+            "description": "site record from bim_site (optional): drawing scale, and true north for north arrows"
+          },
+          {
+            "name": "scale",
+            "type": "str",
+            "access": "item",
+            "description": "drawing scale: the symbol is drawn at paper size and scaled to the model (1:1 = paper mm)",
+            "default": "site",
+            "options": [
+              "site",
+              "1:1",
+              "1:20",
+              "1:50",
+              "1:100",
+              "1:200",
+              "1:250",
+              "1:500",
+              "1:1000"
+            ]
+          },
+          {
+            "name": "size",
+            "type": "float",
+            "access": "item",
+            "description": "size on paper (mm, the longer side); 0 = as designed",
+            "min": 0,
+            "max": 150,
+            "default": 0
+          },
+          {
+            "name": "points",
+            "type": "Point3d",
+            "access": "list",
+            "description": "where to place copies (default: the plane's origin)"
+          },
+          {
+            "name": "rotation",
+            "type": "float",
+            "access": "item",
+            "description": "rotation (degrees, CCW)",
+            "min": -180,
+            "max": 180,
+            "default": 0,
+            "decimals": 1
+          },
+          {
+            "name": "plane",
+            "type": "Plane",
+            "access": "item",
+            "description": "orientation, and the position when no points are given (default: world XY)"
+          },
+          {
+            "name": "block",
+            "type": "bool",
+            "access": "item",
+            "description": "define or update the Rhino block 'Alien · symbol · <name>' and insert it at the points",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "curves",
+            "type": "Curve",
+            "access": "list",
+            "description": "linework, text and outlines, placed and scaled to the model"
+          },
+          {
+            "name": "fills",
+            "type": "Brep",
+            "access": "list",
+            "description": "solid areas (arrows, text, filled halves)"
+          },
+          {
+            "name": "hatches",
+            "type": "Geometry",
+            "access": "list",
+            "description": "a solid hatch per fill and the pattern hatches, for baking"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item",
+            "description": "name, text slots, paper and model size, model, cost"
+          },
+          {
+            "name": "code",
+            "type": "str",
+            "access": "item",
+            "description": "the generated build code"
           }
         ]
       },
@@ -3082,6 +5310,149 @@
         ]
       },
       {
+        "file": "suite/views.py",
+        "name": "views",
+        "category": "Views & drawings",
+        "listing": "Views: plans, reflected ceiling plans, elevations, sections, isometrics and a perspective of any geometry as Rhino named views, clipped and framed with a margin.",
+        "summary": "Named views of any geometry: plans and RCPs per level, elevations, sections, isometrics and a perspective, with clipping planes.",
+        "behaviour": [
+          "Presets: plan + elevations, plan + sections, plans, elevations, axonometrics, all, custom ('plan, rcp, north, section x, iso SW, persp').",
+          "With level records: a plan and RCP per level, cut inside each storey (a second back-facing plane limits the depth).",
+          "Wired section lines look to their left (planes along the normal), lettered with plan section marks.",
+          "make creates or replaces the views and clipping planes registered for the same prefix (never someone else's); without it, frames and cuts preview only."
+        ],
+        "cost": "Free.",
+        "checked": [
+          "2026-10-14: every preset and custom view; the suite house (14 views); named view and plane properties checked."
+        ],
+        "inputs": [
+          {
+            "name": "geometry",
+            "type": "Geometry",
+            "access": "list",
+            "description": "what the views show and are framed to (breps, meshes, curves...)"
+          },
+          {
+            "name": "layer",
+            "type": "str",
+            "access": "item",
+            "description": "or frame the objects on this Rhino layer (when geometry is unwired)",
+            "default": ""
+          },
+          {
+            "name": "preset",
+            "type": "str",
+            "access": "item",
+            "description": "which views",
+            "default": "plan + elevations",
+            "options": [
+              "plan + elevations",
+              "plan + sections",
+              "plans",
+              "elevations",
+              "axonometrics",
+              "all",
+              "custom"
+            ]
+          },
+          {
+            "name": "custom",
+            "type": "str",
+            "access": "item",
+            "description": "views for 'custom', comma separated: plan, rcp, top, north, south, east, west, section x, section y, iso SW, iso SE, iso NE, iso NW, persp",
+            "default": "plan, north, east, section x, iso SW"
+          },
+          {
+            "name": "cut",
+            "type": "float",
+            "access": "item",
+            "description": "plan cut height (m): above the lowest point, or above each level",
+            "min": 0,
+            "max": 20,
+            "default": 1.2
+          },
+          {
+            "name": "levels",
+            "type": "object",
+            "access": "list",
+            "description": "level records (from levels): a plan and RCP per level, cut above each"
+          },
+          {
+            "name": "cuts",
+            "type": "object",
+            "access": "list",
+            "description": "section lines (curves: the view looks to the left of the line) or planes (looks along the normal); replace section x and y"
+          },
+          {
+            "name": "display",
+            "type": "str",
+            "access": "item",
+            "description": "display mode saved with each view (a Rhino display mode name)",
+            "default": "Technical"
+          },
+          {
+            "name": "margin",
+            "type": "float",
+            "access": "item",
+            "description": "space around the geometry in each view (m)",
+            "min": 0,
+            "max": 50,
+            "default": 2
+          },
+          {
+            "name": "prefix",
+            "type": "str",
+            "access": "item",
+            "description": "view name prefix: a press replaces the views made with this prefix",
+            "default": "Alien views"
+          },
+          {
+            "name": "make",
+            "type": "bool",
+            "access": "item",
+            "description": "create (or replace) the named views and their clipping planes in Rhino",
+            "control": "button"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "views",
+            "type": "str",
+            "access": "list",
+            "description": "named view names (wire into layout)"
+          },
+          {
+            "name": "planes",
+            "type": "Plane",
+            "access": "list",
+            "description": "picture plane of each view: frame centre, X right, Y up"
+          },
+          {
+            "name": "frames",
+            "type": "Curve",
+            "access": "list",
+            "description": "the extent of each view"
+          },
+          {
+            "name": "sections",
+            "type": "Curve",
+            "access": "list",
+            "description": "cut lines through the geometry at each plan cut and section"
+          },
+          {
+            "name": "marks",
+            "type": "Curve",
+            "access": "list",
+            "description": "section marks for plans: cut line, arrows and letters"
+          },
+          {
+            "name": "info",
+            "type": "str",
+            "access": "item"
+          }
+        ]
+      },
+      {
         "file": "suite/wall_types.py",
         "name": "wall_types",
         "category": "Building elements",
@@ -3135,6 +5506,13 @@
             "type": "Plane",
             "access": "item",
             "description": "where the swatch sits (default: world origin)"
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
           }
         ],
         "outputs": [
@@ -3462,6 +5840,20 @@
             "type": "Geometry",
             "access": "list",
             "description": "a generated sash design (e.g. object_3d parts), fitted into each sash (optional)"
+          },
+          {
+            "name": "name",
+            "type": "str",
+            "access": "item",
+            "description": "window type name for the library (blank: from the family, size and hand)",
+            "default": ""
+          },
+          {
+            "name": "save",
+            "type": "bool",
+            "access": "item",
+            "description": "add this type to the Alien library",
+            "control": "button"
           }
         ],
         "outputs": [

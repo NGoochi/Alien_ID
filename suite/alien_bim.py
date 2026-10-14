@@ -18,6 +18,9 @@ Record kinds (fields beyond "alien"; lengths in metres, angles in degrees):
   opening    id, kind ("door" | "window"), wall (wall id), at (m along the wall path), width, height, sill, family
   member     id, role ("column" | "beam" | "brace"), start, end, section {shape, name, d, b, t, tf, tw}, rotation,
              material, level, grid
+Later kinds (fields in each helper's docstring): joint (connectors), curtain_wall / curtain_panel (curtain_wall),
+slab_type / slab and roof_type / roof (alien_envelope), stair_type / stair and balustrade_type / balustrade
+(alien_stairs), profile (section_profile; areas and moments in mm units), door_type / window_type (alien_types).
 Nodes may add fields; readers ignore what they don't know.
 """
 import json

@@ -39,6 +39,8 @@ namespace Alien.Scripting
         public static object Resolve(string raw, ParamDef def)
         {
             JToken token = ParseToken(raw);
+            // Objects picked in Rhino: {"pick": ["guid", ...]} -> their current geometry
+            if (Ui.Picks.Ids(token) is JArray picked && Ui.Picks.IsPickable(def)) return Ui.Picks.Resolve(picked, def);
             if (def.Access == ParamAccess.Item)
                 return token == null ? null : ResolveItem(token, def.Type);
 
