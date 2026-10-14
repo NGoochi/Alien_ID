@@ -103,11 +103,23 @@ namespace Alien
         /// <summary>Why the last request failed, shown on the node until the next one; null when it worked.</summary>
         public string DescribeError { get; private set; }
 
+        /// <summary>
+        /// Nodes that were selected when this node was asked for: describe-a-node shows the model what they are and what
+        /// they output, and wires the new node to them. Kept for follow-up requests (this session only).
+        /// </summary>
+        public List<Guid> ContextIds { get; } = new List<Guid>();
+
         /// <summary>Hand the request to the model in the background; progress shows on the node.</summary>
-        public void StartDescribe(string request, ScriptLanguage language = ScriptLanguage.Python3)
+        /// <param name="context">Selected nodes the new node should work with (replaces earlier context).</param>
+        public void StartDescribe(string request, ScriptLanguage language = ScriptLanguage.Python3, IEnumerable<Guid> context = null)
         {
             request = (request ?? "").Trim();
             if (request.Length == 0 || _describe != null) return;
+            if (context != null)
+            {
+                ContextIds.Clear();
+                ContextIds.AddRange(context.Where(g => g != InstanceGuid).Distinct());
+            }
             var cts = _describe = new CancellationTokenSource();
             var entry = new TranscriptEntry { Request = request };
             Transcript.Add(entry);
@@ -669,22 +681,7 @@ namespace Alien
             item.Enabled = false;
         }
 
-        protected override Bitmap Icon
-        {
-            get
-            {
-                var bmp = new Bitmap(24, 24);
-                using var g = Graphics.FromImage(bmp);
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.Clear(Color.Transparent);
-                using var bg = new SolidBrush(Color.FromArgb(26, 26, 26));
-                g.FillEllipse(bg, 1, 1, 22, 22);
-                using var pen = new Pen(AlienAttributes.Accent, 2f);
-                g.DrawEllipse(pen, 3, 3, 18, 18);
-                using var dot = new SolidBrush(AlienAttributes.Accent);
-                g.FillEllipse(dot, 9, 9, 6, 6);
-                return bmp;
-            }
-        }
+        /// <summary>The Alien mark in black, for Grasshopper's toolbar.</summary>
+        protected override Bitmap Icon => Ui.Logo.Icon(24, Color.Black);
     }
 }

@@ -10,17 +10,54 @@ unedited copies up to date (`.alien/suite.json` records what was installed; edit
 | `site_views.py` | Views & drawings | Plan, site plan, X and Y centreline sections and four elevations around the site, as Rhino named views (sections clipped) and an optional A3–A1 layout sheet at standard scales |
 | `object_3d.py` | Massing & objects | Describe a thing ("a dining chair"), optionally with a reference image, and a model writes RhinoCommon code that builds it from solids at real size, with part names and materials |
 | `material_texture.py` | Materials | A finish ("board-formed concrete") becomes a seamless texture: a Custom Preview material and, on request, a Rhino PBR material mapped at real-world size |
+| `bim_site.py` | Building elements | The building suite's base: a site record (name, project base point, grid rotation, true north, AHD datum, drawing scale, boundary) that every building node reads through `site`. Takes vic_site_map's `site` and `datum`; origin at the lot's corner, centre or the world origin; grid aligned to the lot's long axis or longest edge; north point and base-point marker |
+| `levels.py` | Building elements | Named levels (basements, storeys, roof) from a ground level above the site origin: `count`, `height`, per-storey `heights` ("4.5, 3, , 3.6"); naming Level 1 / L1 / L01 / Level 01 / LVL 1 / custom ("Floor #"); level records with RLs from the site datum, level lines, datum-symbol heads and plan labels in paper mm at the drawing scale. The old outputs (planes, elevations, names, plates, roof, total) stay |
+| `grids.py` | Building elements | Revit/ArchiCAD-style grids on the site's origin and rotation: bays "7.2, 7.2, 8.4" or "3x7.2", numbers along X and letters along Y (I and O skipped), extensions, bubble heads at either or both ends, custom angled or curved grids, intersections named "A/1", bay and overall dimensions |
+| `wall_types.py` | Building elements | A wall build-up: Australian presets (brick veneer, double brick, timber stud, steel stud partition, concrete 200, precast 150, blockwork 190, CLT, rendered AAC) or layers typed exterior → interior in mm (`brick 110; cavity 40; timber stud 90*; plasterboard 10`, `*` = core); layer names, materials, thicknesses, a swatch |
+| `walls.py` | Building elements | Layered walls along lines, polylines, arcs, splines or closed outlines, from a base level to the next (or a named level, or a height); location line centre / exterior / interior / core centre; mitred corners, L and T joins between walls; wall records, one solid per layer, plan linework at the cut height, centrelines |
+| `doors.py` | Building elements | Doors hosted in walls (single or double swing, sliding, pocket, bifold) at distances along a wall (`1.2, -1, 50%`) or at points; kept clear of corners, ends and each other; every opening so far cut through the walls (`walls` chains into windows); frames, leaves, glass; plan symbols (leaf drawn open with its swing), a reflected view, elevation marks; a generated design (object_3d parts) can be fitted into each leaf |
+| `windows.py` | Building elements | Windows hosted the same way (fixed, casement, awning, hopper, sliding, double hung) at a sill height, chained after doors; frames, sashes, glass; plan, reflected and elevation symbols (dashed V to the hinge side: side, top or bottom hung) |
+| `curtain_wall.py` | Building elements | A curtain wall along a straight, faceted, curved or closed path between levels: mullions at a panel width (equal divide, fixed from start, centred), transoms at levels and typed heights ("1.2, 2.4", "@1.5", "-0.9"), box / I / T / round / fin / flat bar profiles in mm, optional warren, pratt, howe or vierendeel trusses; plan cut, curtain grid, cell surfaces, records |
+| `beams_columns.py` | Building elements | A structural frame on the grids: columns at intersections (all, perimeter, or a skip list) one per storey, beams along the grids at each level, in Australian steel (UB, UC, PFC, SHS, RHS, CHS, EA), glulam, LVL or concrete; beams trimmed to the faces they meet; member records, tonnage |
+| `structure_edit.py` | Building elements | Edits a frame: resize (a name or up/down a size), move, rotate, remove or extend members picked by id wildcards (`B-L02-*`) or filters (`level=L02 role=beam`), several edits at once; ids kept, framing beams re-trimmed |
+| `connectors.py` | Building elements | Connections found from the members: base plates and anchors, cap plates, column splices, end plates, fin plates, cleats, bolts (M16/M20/M24), optional welds; joint records and a schedule ("BP A/1 GF: PL 505x508x25, 4 M24 anchors") |
 | `branch_picker.py` | Data & lists | Pass chosen branches of a data tree through: `0, 2, 4-6`, `-1`, `*`, `even`/`odd`, in the order given; the rest go out of `rest`; `branches` lists every branch with its size and contents |
-| `levels.py` | Massing & objects | Stack of levels from z0 (`base`): `count`, a default floor-to-floor `height`, per-level `heights` ("4.5, 3, , 3.6", a blank keeps the default); planes, elevations, names, floor plates (a wired outline, or a 20 x 12 m sample), roof plane |
 | `scale_figure.py` | Entourage | A person as a true-height silhouette for elevations and sections: `who` ("a woman pushing a pram"), `height`, `view` (side, front, back, three-quarter); outline curves, planar fill, solid hatch |
 | `scale_tree.py` | Entourage | A tree silhouette at true size: `species`, `height`, `view` elevation or plan (`spread` = canopy width); canopy gaps kept as holes |
 | `alien_graphics.py` | – | Helper for the two graphics nodes (prompting, image model, cache, tracing, scaling) |
 | `alien_ai.py` | – | Helper: Alien's settings, OpenRouter chat (with images) and image generation, caches in `.alien/cache` |
 | `alien_assets.py` | – | Helper: saves what nodes generate to the asset library, with thumbnails |
 | `alien_vicdata.py` | – | Helper for `vic_site_map`: terrain, trees and street cross-sections from open data |
+| `alien_bim.py` | – | Helper for the building suite: records (JSON between nodes), units, site plane, levels and grids lookup with samples, grid intersections, text as curves, material colours, section profiles and member solids |
+| `alien_walls.py` | – | Helper for the wall nodes: wall types, wall solids rebuilt from records, joins, opening placement and cutting, symbols |
+| `alien_sections.py` | – | Helper for the structure nodes: Australian steel, timber and concrete sections by name, with sizes and kg/m |
 
 Helpers are not nodes; keep them in the same folder as the nodes that import them. All nodes take sizes in metres and
 scale them to the model's units. The line after the header, `# CATEGORY: ...`, places a node in the panel's library.
+
+## Building suite (bim_site, levels, grids, walls, doors, windows, curtain_wall, structure)
+
+Built 2026-10-13 as a first pass at BIM-style modelling. The nodes pass elements as **records**: JSON text, one per
+element (`{"alien": "level", "name": "Level 1", "code": "L01", "elevation": 3.2, ...}`), so any node, a native panel or
+an agent can read them; lengths are metres in world coordinates, geometry pins are in model units. Wire them by name:
+
+```
+bim_site.site ─┬─> levels.site ──> levels.levels ─┬─> walls / curtain_wall / beams_columns .levels
+               ├─> grids.site ───> grids.grids ───┴─> beams_columns.grids
+               └─> walls.site      wall_types.wall_type ─> walls.wall_type
+walls.walls ─> doors.walls ─> doors.walls ─> windows.walls      (each step cuts every opening so far)
+beams_columns.members ─> structure_edit.members ─> connectors.members
+```
+
+- Every node shows sample geometry when unwired (sample levels, grids, room, frame or wall), so it works alone.
+- Annotation (level heads, grid bubbles, dimensions) is sized in paper mm at the site's drawing scale.
+- `tests/bim/chain.py` places the whole chain on the open canvas, wires it, and checks every node solved, every solid is
+  valid and closed, and the timings (2026-10-13: 11 nodes, 13 wires, all ok, about 3 s for the whole solve).
+- Selecting `levels` and `grids` and describing "a floor slab at every level" in the panel builds a new node already
+  wired to both (it reads the records with `json.loads`).
+- Limits of this pass: openings don't see walls that butt into their host; pocket doors don't cut a pocket; braces and
+  inclined members get no connectors; bolts have no holes; curved grids are intersected on their chords by readers
+  other than `grids`; no slabs, roofs, stairs or schedules yet.
 
 ## Asset library (what the nodes generate)
 

@@ -2,7 +2,8 @@
 
 Alien is a Grasshopper plugin for Rhino 8: nodes whose logic is a Python or C# script, written for you from a plain
 English description. It comes with a suite of architectural nodes (Victorian site maps with terrain, streets and
-trees; plan, section and elevation views; 3D objects and material textures from a prompt; scale figures and trees).
+trees; plan, section and elevation views; 3D objects and material textures from a prompt; scale figures and trees;
+and a first building suite: site, levels, grids, walls, doors, windows, curtain walls, beams, columns and connectors).
 
 **This is an alpha.** It is built and tested on Rhino 8 for macOS. The same plugin file is meant to run on Windows,
 but Windows hasn't been tested yet. Please report what breaks.
@@ -61,6 +62,9 @@ In Grasshopper, **File > Special Folders > Components Folder** opens it. Then cl
    - Place a preloaded node from the **Library**. The suite is copied into your script folder's `suite` subfolder
      the first time the panel opens.
    - The **Generated** tab keeps the 3D objects, materials and drawings the suite makes.
+   - **⚙ Settings** picks a theme (Alien, Cursor Dark, Dracula, Nord, GitHub Light and more) or your own background,
+     text and accent colours.
+   - Select two or more nodes and describe a node that uses them: it is built beside them, already wired.
 5. **Try the map node:** place `vic_site_map` from the Library and type a Victorian address. Suggestions appear
    once you've typed the street number. It is free and needs no key.
 
@@ -77,7 +81,7 @@ Only steps that call a model cost anything, and they're paid to OpenRouter with 
 | Describe-a-node (Claude Haiku 5.5) | about US$0.001 per node |
 | `object_3d` (Claude Sonnet 5.5) | about US$0.01–0.02 per design |
 | `material_texture`, `scale_figure`, `scale_tree` | about US$0.034 per image |
-| `vic_site_map`, `site_views`, `levels`, `branch_picker` | free |
+| `vic_site_map`, `site_views`, `branch_picker`, the building suite (`bim_site`, `levels`, `grids`, walls, openings, curtain walls, structure) | free |
 
 The AI nodes only call a model when you press their **Generate** button. Everything they make is cached, so moving
 sliders and reopening files is free.

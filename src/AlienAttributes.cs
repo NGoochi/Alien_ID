@@ -20,30 +20,33 @@ using Alien.Ui;
 namespace Alien
 {
     /// <summary>
-    /// Dark card, green accent, glowing when selected (the Alien panel follows the selection). Header = script name +
+    /// A card in the theme's colours (dark with a green accent by default), glowing when selected (the Alien panel follows the selection). Header = script name +
     /// language badge; status row (ok / error / running); one row per pin, where an unwired input carries its control
     /// (slider, switch, dropdown, text field) built from the script header; and the error itself when the script failed.
     /// Pins never move when the error strip comes and goes.
     /// </summary>
     public class AlienAttributes : GH_ComponentAttributes
     {
-        public static readonly Color Accent = Color.FromArgb(0, 200, 83);
+        /// <summary>The theme's accent (green by default): settings > Appearance in the Alien panel.</summary>
+        public static Color Accent => Theme.Current.Accent;
 
         private const float HeaderH = 26f, RowH = 20f, PinH = 18f, CtrlPinH = 22f, MinW = 170f, Radius = 8f, Pad = 9f;
         private const float ErrorMaxH = 52f, ButtonW = 46f, CtrlW = 124f, ValueW = 36f;
 
-        private static readonly Color Bg = Color.FromArgb(30, 30, 30);
-        private static readonly Color HeaderBg = Color.FromArgb(22, 22, 22);
-        private static readonly Color IoBg = Color.FromArgb(36, 36, 36);
-        private static readonly Color FieldBg = Color.FromArgb(46, 46, 46);
-        private static readonly Color FieldEdge = Color.FromArgb(62, 62, 62);
-        private static readonly Color Text = Color.FromArgb(215, 215, 215);
-        private static readonly Color Dim = Color.FromArgb(140, 140, 140);
-        private static readonly Color Outline = Color.FromArgb(50, 50, 50);
-        private static readonly Color Amber = Color.FromArgb(224, 160, 32);
-        private static readonly Color Red = Color.FromArgb(225, 70, 70);
-        private static readonly Color Blue = Color.FromArgb(90, 160, 255);
-        private static readonly Color Grey = Color.FromArgb(85, 85, 85);
+        // Mixed from the theme's background, text and accent (Ui/Theme.cs)
+        private static Color Bg => Theme.Current.Background;
+        private static Color HeaderBg => Theme.Current.Header;
+        private static Color IoBg => Theme.Current.Io;
+        private static Color FieldBg => Theme.Current.Field;
+        private static Color FieldEdge => Theme.Current.FieldEdge;
+        private static Color Text => Theme.Current.Text;
+        private static Color Dim => Theme.Current.Dim;
+        private static Color Outline => Theme.Current.Outline;
+        private static Color Amber => Theme.Current.Amber;
+        private static Color Red => Theme.Current.Red;
+        private static Color Blue => Theme.Current.Blue;
+        private static Color Grey => Theme.Current.Muted;
+        private const float MarkW = 15f; // the Alien mark before the title
         internal static readonly string Family = OperatingSystem.IsMacOS() ? "Helvetica Neue" : "Segoe UI";
 
         /// <summary>One input pin and, when it is unwired and has a kind, its control.</summary>
@@ -99,7 +102,7 @@ namespace Alien
                 float left = 15 + labelW + (controls ? 8 + CtrlW : 0) + 8;
                 w = Math.Max(w, left + outW + 22);
                 using var hf = new Font(Family, 9f, FontStyle.Bold);
-                w = Math.Max(w, g.MeasureString(Title(c), hf).Width + 70);
+                w = Math.Max(w, g.MeasureString(Title(c), hf).Width + 70 + MarkW);
                 if (_error != null)
                 {
                     w = Math.Max(w, 220f);
@@ -163,16 +166,17 @@ namespace Alien
             if (Selected) Glow(g, b);
             else
                 using (var shadow = RoundRect(new RectangleF(b.X + 2, b.Y + 3, b.Width, b.Height), Radius))
-                using (var sb = new SolidBrush(Color.FromArgb(50, 0, 0, 0))) g.FillPath(sb, shadow);
+                using (var sb = new SolidBrush(Theme.Current.Shadow)) g.FillPath(sb, shadow);
             using var body = RoundRect(b, Radius);
             using (var bb = new SolidBrush(Bg)) g.FillPath(bb, body);
 
-            // Header: name + language badge + MCP dot
+            // Header: the Alien mark + name + language badge + MCP dot
             using (var hp = RoundTop(new RectangleF(b.X, b.Y, b.Width, HeaderH), Radius))
             using (var hb = new SolidBrush(HeaderBg)) g.FillPath(hb, hp);
+            Logo.Draw(g, new RectangleF(b.X + Pad - 1, b.Y + 6.5f, MarkW - 3, HeaderH - 13), c.Locked ? Dim : Accent);
             using (var hf = new Font(Family, 9f, FontStyle.Bold))
             using (var tb = new SolidBrush(c.Locked ? Dim : Text))
-                g.DrawString(Title(c), hf, tb, new RectangleF(b.X + Pad, b.Y, b.Width - Pad - 58, HeaderH), left);
+                g.DrawString(Title(c), hf, tb, new RectangleF(b.X + Pad + MarkW, b.Y, b.Width - Pad - MarkW - 58, HeaderH), left);
             if (c.Language != ScriptLanguage.None)
             {
                 var pill = new RectangleF(b.Right - 52, b.Y + 7, 30, HeaderH - 14);
@@ -185,7 +189,7 @@ namespace Alien
             Dot(g, b.Right - 12, b.Y + HeaderH / 2f, 3f, McpServer.Instance.IsRunning ? Accent : Grey);
 
             // Status row
-            using (var sep = new Pen(Color.FromArgb(40, 255, 255, 255), 0.75f))
+            using (var sep = new Pen(Color.FromArgb(40, Text), 0.75f))
                 g.DrawLine(sep, b.X + 4, _statusRow.Y, b.Right - 4, _statusRow.Y);
             var (statusText, statusColor) = Status(c);
             Dot(g, b.X + Pad + 3, _statusRow.Y + RowH / 2f, 3.5f, statusColor);
@@ -288,6 +292,7 @@ namespace Alien
                     using (var tb = new SolidBrush(Grey)) g.FillRectangle(tb, track.X, cy - 1.5f, track.Width, 3);
                     using (var ab = new SolidBrush(Accent)) g.FillRectangle(ab, track.X, cy - 1.5f, kx - track.X, 3);
                     using (var kb = new SolidBrush(_drag == r ? Color.White : Color.FromArgb(230, 230, 230))) g.FillEllipse(kb, kx - 5, cy - 5, 10, 10);
+                    if (Theme.Current.IsLight) using (var ke = new Pen(FieldEdge, 0.8f)) g.DrawEllipse(ke, kx - 5, cy - 5, 10, 10);
                     using (var vb = new SolidBrush(Text))
                         g.DrawString(range.Format(v), f, vb, new RectangleF(rc.Right - ValueW, rc.Y - 2, ValueW, rc.Height + 4),
                             new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center });
@@ -315,7 +320,7 @@ namespace Alien
                         using (var fb = new SolidBrush(busy ? Accent : FieldBg)) g.FillPath(fb, bp);
                         using (var fe = new Pen(Accent, 0.9f)) g.DrawPath(fe, bp);
                     }
-                    using (var tb = new SolidBrush(busy ? Color.Black : Accent))
+                    using (var tb = new SolidBrush(busy ? Theme.Current.OnAccent : Accent))
                         g.DrawString(label, f, tb, bb, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
                     break;
                 }
@@ -369,7 +374,8 @@ namespace Alien
         {
             if (e.Button != MouseButtons.Left) return base.RespondToMouseDown(sender, e);
             var pt = e.CanvasLocation;
-            if (InlineEditor.HandleClick(pt)) return GH_ObjectResponse.Handled; // a pick from a suggestion list over this node
+            // a pick from a suggestion list over this node (heard here or, first, by the canvas)
+            if (InlineEditor.HandleClick(pt) || InlineEditor.Consumed(pt)) return GH_ObjectResponse.Handled;
             if (_panelButton.Contains(pt)) { SelectOnly(sender); AlienPanel.Open(); return GH_ObjectResponse.Handled; }
 
             var r = _rows.FirstOrDefault(x => x.Active && x.Control.Contains(pt));

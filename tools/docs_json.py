@@ -254,14 +254,145 @@ SUITE = {
         "checked": ["Board-formed concrete, 1.2 m tile: both textures in WCS box mapping at the right repeat."],
         "limits": ["Display textures don't show in captures of a backgrounded Rhino: check them by eye."],
     },
-    "levels.py": {
-        "summary": "A stack of building levels from z0, each with its own floor-to-floor height: planes, elevations, names, "
-                   "floor plates and the roof plane.",
-        "behaviour": ["heights takes a list such as '4.5, 3, , 3.6' (a blank keeps the default height).",
-                      "Floor plates come from a wired outline, else a 20 x 12 m sample.",
-                      "A junk height falls back to the default with a note."],
+    "bim_site.py": {
+        "summary": "The building suite's base: a site record (name, project base point, grid rotation, true north, AHD datum, "
+                   "drawing scale, boundary) that levels, grids and every building node read through their site input.",
+        "behaviour": ["Takes vic_site_map's site (several lots are joined) and datum.",
+                      "Origin: a wired point, else the boundary's lower-left corner in project axes (anchor corner), its "
+                      "centroid (centre) or the world origin.",
+                      "align takes the grid direction from the lot's long axis or longest edge; rotation turns it further.",
+                      "Annotation across the suite is sized in paper mm at the site's drawing scale (1:50 ... 1:1000).",
+                      "Outputs the project plane, a north point (with a PN tick when the grid is turned) and a base-point marker."],
         "cost": "Free.",
-        "checked": ["count 6, heights '4.5, 3, , 3.6', base 1.2: elevations 1.2 / 5.7 / 8.7 / 11.9 / 15.5 / 18.7, roof 21.9 m."],
+        "checked": ["2026-10-13: every anchor x align combination on an irregular lot (longest edge 94.1 deg checked by hand); "
+                    "a real vic_site_map lot, touching lots (joined), disjoint lots, open polylines and circles."],
+    },
+    "levels.py": {
+        "summary": "Named building levels (basements, storeys, roof) from a ground level above the site origin, with level "
+                   "records, level lines, datum-symbol heads and plan labels for drawings.",
+        "behaviour": ["count, height and per-storey heights ('4.5, 3, , 3.6'; a blank keeps the default); basements below "
+                      "the ground level; an optional Roof level.",
+                      "Naming: Level 1 | L1 | L01 | Level 01 | LVL 1 | custom ('Floor #', '##F'), a ground name and a start number.",
+                      "RL = site datum + elevation ('RL 23.460' with an AHD datum, else 'RL +3.200').",
+                      "Level lines run along project X and/or Y past the plates by margin; heads at either or both ends.",
+                      "The old outputs (planes, elevations, floor_heights, names, plates, roof, total) stay one per storey; "
+                      "levels, lines, heads, annotations, labels and rl include the roof."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every naming and ground option, counts 1-100, junk heights, basements, the chain bim_site -> levels "
+                    "(origin z, rotation, datum, scale)."],
+    },
+    "grids.py": {
+        "summary": "Revit/ArchiCAD-style grids on the site's origin and rotation: grid records, lines, bubble heads, "
+                   "intersections named 'A/1' and dimension strings.",
+        "behaviour": ["Bays as '7.2, 7.2, 8.4' or '3x7.2' (values over 100 read as mm); numbers along X and letters along Y "
+                      "by default (swap with labels), start labels such as '4', 'C', 'X1'; I and O skipped; AA after Z.",
+                      "Heads (bubbles) at both, start, end or no ends, sized in paper mm at the drawing scale.",
+                      "Custom angled or curved grids with names; their crossings are found on the curve.",
+                      "Bay and overall dimensions in mm on the start sides."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: spacing formats, label options, extensions 0-20, custom arcs, rotated sites (30 and 94 deg); "
+                    "intersections match alien_bim.intersections."],
+    },
+    "wall_types.py": {
+        "summary": "A wall build-up: an Australian preset (brick veneer, double brick, timber stud, steel stud partition, "
+                   "concrete 200, precast 150, blockwork 190, CLT, rendered AAC) or your own layers, as a wall_type record.",
+        "behaviour": ["Layers run exterior -> interior in mm ('brick 110; cavity 40; timber stud 90*; plasterboard 10'; m and cm "
+                      "work; * marks the core); a layers text replaces the preset's.",
+                      "Junk tokens are reported one by one; an empty custom falls back to a generic 200 mm wall.",
+                      "Outputs layer names, materials, thicknesses, the total and a stepped swatch with colours."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every preset; custom layers with junk, zero, negative and huge thicknesses."],
+    },
+    "walls.py": {
+        "summary": "Layered walls along curves (lines, polylines, arcs, splines, closed outlines) from a base level to the next "
+                   "(or a named level, or a height), with wall records, one solid per layer, plan linework and centrelines.",
+        "behaviour": ["The exterior is on the left of an open path; closed outlines put it outside; flip swaps.",
+                      "Location line: centre, exterior, interior or core centre.",
+                      "Corners within a wall are mitred exactly; with join on, walls meeting end to end are mitred (L) and walls "
+                      "stopping inside another are trimmed to its face (T). Crossings (X) are left overlapping.",
+                      "Layers that fold over on bends too tight for the wall are dropped with a note.",
+                      "Plan linework is cut at a height above the base (default 1 m)."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: lines, arcs, splines, L and T pairs, circles, filleted and concave rooms, odd and too-tight paths, "
+                    "all 4 locations x flip (valid outward-facing solids; layer positions checked numerically), wired levels."],
+    },
+    "doors.py": {
+        "summary": "Doors hosted in wall records: single or double swing, sliding, pocket, bifold, at distances along a wall or at "
+                   "points, cut through every layer, with frames, leaves and drawing symbols.",
+        "behaviour": ["Positions '1.2, -1, 50%' (negative = back from the end), or points (nearest wall); wall by id, index, list or 'all'.",
+                      "Openings stay clear of corners and wall ends and never overlap (skipped or moved with a note).",
+                      "walls in, walls out: each record gains its openings, so walls -> doors -> windows chains, and solids are the "
+                      "walls with every opening so far cut (straight walls rebuilt face by face, curved ones by Booleans).",
+                      "hand is seen from the side the door opens into; swing in or out.",
+                      "Drawings: plan (leaf drawn open with its swing arc), reflected (seen from below), elevation (dashed V to the hinges).",
+                      "design: generated geometry (e.g. object_3d's parts) is fitted into each leaf, mirrored for right hands."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every family x hand x swing on straight, arc and spline walls; hand checked on 6 wall "
+                    "orientations (24/24); junk, negative, % and overlapping positions; a cached object_3d design."],
+    },
+    "windows.py": {
+        "summary": "Windows hosted in wall records: fixed, casement, awning, hopper, sliding, double hung, at a sill height, cut "
+                   "through every layer, with frames, sashes, glass and drawing symbols.",
+        "behaviour": ["Hosted, placed and chained like doors; a window may sit above a door.",
+                      "Plan symbols are dashed when the window is above the cut; reflected view; elevation marks show the hinge "
+                      "side (side-hung casement, top-hung awning, bottom-hung hopper) or arrows (sliding, double hung).",
+                      "design: generated geometry is fitted into each sash."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every family x hand x swing on straight and curved walls, high and full-height sills, the chain "
+                    "wall_types -> walls -> doors -> doors -> windows (6 windows 61 ms)."],
+    },
+    "beams_columns.py": {
+        "summary": "A structural frame on the grids: columns at intersections (one member per storey) and beams from "
+                   "intersection to intersection at each level, in Australian steel, timber or concrete sections.",
+        "behaviour": ["Sections read forgivingly from alien_sections' catalogue: 193 steel sizes (UB, UC, PFC, SHS, RHS, CHS, EA, "
+                      "UA), glulam, LVL, sawn and concrete ('310 UB 40.4', 'SHS 150x9', '600 dia'); steel snaps to the nearest "
+                      "catalogue size with a note; junk falls back to the material's default.",
+                      "Columns at all intersections, the perimeter or none, less a skip list ('B/2, C/3'); they turn with their grid.",
+                      "Beams on both, lettered or numbered grids, top_offset below each level, stopping 12 mm off the face they "
+                      "meet (flange, web or flange tips); where no column stands, the continuous beams are primary.",
+                      "Member records carry the exact centreline, section spec and name, level, grid and kg (info sums steel tonnes)."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every material, columns_at, beams_on and level option; grids rotated 15 and 30 deg (identical beam "
+                    "lengths); a 6x4-bay 6-storey frame (558 members) in 0.15 s."],
+    },
+    "structure_edit.py": {
+        "summary": "Edits a frame after creation: resize, move, rotate, remove or extend members picked by id wildcards or "
+                   "filters, with several edits at once; ids are kept.",
+        "behaviour": ["select: 'C-A/*', 'B-L02-*', or filters level=L02 grid=A role=beam section=310UC* material=steel; * = all.",
+                      "edits: one 'pattern: key=value ...' line per edit, applied in order (section=, remove, move=dx,dy,dz, "
+                      "rotate=, extend=).",
+                      "Resize takes a section name or up/down a size; beams keep their tops.",
+                      "Beams framing into a changed member are re-trimmed to its new face; edited members preview green and "
+                      "are listed in changed."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every action through the dropdown and edit lines, every filter, up/down sizing, junk lines; "
+                    "connectors follow the edits (a column turned 90 deg swaps end plates and fin plates)."],
+    },
+    "connectors.py": {
+        "summary": "Steel connections found from the members' geometry: base plates with anchors, cap plates, column splices, "
+                   "end plates, fin plates and cleats, with bolts, optional welds and a schedule.",
+        "behaviour": ["auto picks per joint: end plates on column flanges, fin plates on webs and between beams; or one type for all.",
+                      "Hollow, channel and angle sections, CHS columns, timber knife plates and T-brackets on timber/concrete supports.",
+                      "Bolt rows/columns fit the plate (or as given); edge distance and base-plate margin grow when bolts wouldn't fit.",
+                      "joints records and a schedule line per joint ('BP A/1 GF: PL 505x508x25, 4 M24 anchors')."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: 28 section-family x type combinations, every option, rotated grids, the chain grids/levels -> "
+                    "beams_columns -> structure_edit -> connectors (196 joints)."],
+    },
+    "curtain_wall.py": {
+        "summary": "A curtain wall or glazing system along a straight, faceted, curved or closed path, between levels (or a "
+                   "height): mullions, transoms, frame, glass and optional trusses, with a plan cut and records.",
+        "behaviour": ["The exterior is on the right of an open path's direction; closed outlines face out; flip swaps.",
+                      "Mullions at a panel width (equal divide, fixed from start or centred); arcs and splines are faceted into "
+                      "straight chords; every corner gets a mullion turned to the bisector.",
+                      "Transoms at every level and/or typed heights ('1.2, 2.4', '@1.5', '-0.9' down from the top), per storey or "
+                      "from the wall base.",
+                      "Mullion and transom profiles box, I, T, round, fin (frameless glass with 12 mm joints) or flat bar, in mm.",
+                      "Optional warren, pratt, howe or vierendeel trusses behind the mullions (depth, chord and web sections).",
+                      "Member counts are capped (300 mullions, 1,500 cells, 1,500 truss members) with a note."],
+        "cost": "Free.",
+        "checked": ["2026-10-13: every profile pair, truss type and fit mode; line, arc, spline, circle, CW/CCW rectangles, "
+                    "L-shape, sloped and doubled-back paths; offsets and flip; a 48 m 12-storey wall with trusses (956 valid solids)."],
     },
     "branch_picker.py": {
         "summary": "Passes chosen branches of a data tree through, in the order given; the rest go out of rest.",
@@ -373,6 +504,8 @@ DOC = {
             {"key": "ollamaUrl", "meaning": "Local model server", "default": "http://localhost:11434"},
             {"key": "reasoning", "meaning": "Reasoning effort for describe-a-node", "default": "low (none for local models)"},
             {"key": "panel", "meaning": "\"rhino\" docks the panel in Rhino instead of beside Grasshopper", "default": None},
+            {"key": "theme", "meaning": "Colours of the nodes, canvas text box and panel: {preset, background, text, accent} "
+             "(\"#rrggbb\"); written by the panel's settings", "default": "the Alien preset"},
         ],
     },
     "script_repository": {
@@ -433,7 +566,9 @@ DOC = {
             {"kind": "suggestions", "for": "str with suggest=\"vic-address\"", "behaviour": "A list drawn under the text box "
              "follows the typing (Vicmap addresses, about 0.1 s a lookup, from the street number on); arrow keys + Enter or "
              "a click pick one."},
-            {"kind": "text field", "for": "str, and lists of str/float/int typed as 'a, b, c'", "behaviour": "Edited in place; Enter commits."},
+            {"kind": "text field", "for": "str, and lists of str/float/int typed as 'a, b, c'", "behaviour": "Edited in place; "
+             "the box grows with the text (up to 460 px). Enter, clicking anywhere else (another field too) or scrolling "
+             "the canvas commits; Escape cancels."},
         ],
         "runtime_controls": {
             "what": "A Python script can set NODE_CONTROLS to retune its controls after a run.",
@@ -442,7 +577,8 @@ DOC = {
                        "no manual value (e.g. the built size for '0 = as built')", "key": "what the values belong to: when a run "
                        "reports a different key, values set under the old one are cleared and the node solves again"},
         },
-        "appearance": ["Header with the script name, a PY / C# badge and a state light; a status row (ok / error, run time) "
+        "appearance": ["Colours from the theme (panel settings): background, text and accent, the rest mixed from them.",
+                       "Header with the Alien mark (in the accent), the script name, a PY / C# badge and a state light; a status row (ok / error, run time) "
                        "with a PANEL button; the error itself in a strip at the bottom; a glow when selected.",
                        "Input dots: green = wired, blue = a value set on the node or by an agent, grey = the header default."],
         "menu": [
@@ -462,10 +598,17 @@ DOC = {
     "panel": {
         "hosts": ["Default: a window glued to the side of the Grasshopper editor that moves with it (macOS child window; "
                   "Windows owned window, untested).", "Setting panel: \"rhino\" (or the dock button) makes it a Rhino panel."],
-        "header": ["Model picker for describe-a-node", "Settings file", "Dock / undock", "Close"],
+        "header": ["The Alien mark (in the accent)", "Model picker for describe-a-node", "Settings (⚙)", "Dock / undock", "Close"],
+        "settings_view": ["Theme presets: Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark, "
+                          "High Contrast, Light, GitHub Light, Solarized Light",
+                          "Background, text and accent colour pickers (with hex fields); changing one makes a custom theme",
+                          "Reset to Alien; Open settings file (key, models, script folder, port)"],
         "node_section": ["Follows the selected Alien node: name, language, status, description, error",
                          "Describe box: a new node (none selected) or a change to the selected one; Enter sends, Shift+Enter "
                          "for a new line; Stop while running",
+                         "Several nodes selected (or one native component, or 'Build a new node from this one' ticked): the "
+                         "selection is listed, and describing builds a new node beside it that sees what each selected node "
+                         "outputs and is wired to them",
                          "Requests: every describe request with its outcome and notes",
                          "Inputs (current values), Code (with Open in editor / Show file), Earlier versions (Restore)"],
         "library_tab": ["Every script with a header, grouped by category, with category chips and counts and a search",
@@ -508,7 +651,10 @@ DOC = {
                 "model, which returns the whole file.",
                 "Alien writes it (the old version goes to .alien/history), re-solves and judges the run report: an error, unset "
                 "outputs, no outputs or every output empty goes back to the model. Up to 4 attempts.",
-                "Progress shows on the node and in the panel; every request is kept in the node's transcript."],
+                "Progress shows on the node and in the panel; every request is kept in the node's transcript.",
+                "From a selection: each selected node's id, header (or component name), output summaries and one building "
+                "record in full go with the request; the model answers with a 'WIRES: input <- id.output; ...' line and "
+                "Alien wires the new node before its first judged run. MCP generate takes the same as context: [ids]."],
         "models": "Default anthropic/claude-haiku-5.5 through OpenRouter (providers that don't store or train on prompts); any "
                   "OpenRouter model or a local Ollama model works.",
         "tested": ["2026-10-09: Haiku 5.5 10/10 working, 10/10 first try; GPT-6 Luna 10/10 (9 first try); DeepSeek V4.1 "
@@ -623,7 +769,7 @@ def check(doc):
             continue
         src += "".join(open(os.path.join(d, f), encoding="utf-8").read() for f in files if f.endswith(".cs"))
     suite = "".join(open(os.path.join(ROOT, "suite", f), encoding="utf-8").read() for f in os.listdir(os.path.join(ROOT, "suite")) if f.endswith(".py"))
-    used = set(re.findall(r'Setting\("([A-Za-z0-9]+)"', src)) | set(re.findall(r'Settings\.Value<[^>]+>\("([A-Za-z0-9]+)"', src)) \
+    used = set(re.findall(r'Setting(?:Token)?\("([A-Za-z0-9]+)"', src)) | set(re.findall(r'Settings\.Value<[^>]+>\("([A-Za-z0-9]+)"', src)) \
         | set(re.findall(r'setting\("([A-Za-z0-9]+)"\)', suite))
     documented = {k["key"] for k in doc["settings"]["keys"]}
     problems += ["setting %r is read by the code but not documented" % k for k in sorted(used - documented)]

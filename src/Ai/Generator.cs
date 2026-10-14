@@ -4,10 +4,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Newtonsoft.Json.Linq;
+
+using Grasshopper.Kernel;
 
 using Alien.Mcp;
 using Alien.Scripting;
@@ -67,15 +70,75 @@ namespace Alien.Ai
         public string Source { get; private set; }
         public ScriptLanguage Language { get; private set; }
         public List<string> Wired { get; } = new List<string>();
+        /// <summary>The nodes selected with the request: what each is and what it outputs now.</summary>
+        public List<string> Selected { get; } = new List<string>();
+        /// <summary>The Rhino document's units, e.g. "Millimeters (1 m = 1000 units)".</summary>
+        public string Units { get; private set; }
 
         public static NodeContext Read(AlienComponent node)
         {
             var c = new NodeContext { Path = node.ScriptPath, Language = node.Language };
+            var rdoc = Rhino.RhinoDoc.ActiveDoc;
+            if (rdoc != null)
+            {
+                double perMetre = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, rdoc.ModelUnitSystem);
+                c.Units = $"{rdoc.ModelUnitSystem} (1 m = {perMetre.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)} units)";
+            }
             if (c.Path != null && File.Exists(c.Path)) c.Source = File.ReadAllText(c.Path).Replace("\r\n", "\n");
             if (c.Language == ScriptLanguage.None && c.Path != null) c.Language = ScriptLanguages.FromPath(c.Path);
             foreach (var p in node.Params.Input)
                 if (p.SourceCount > 0) c.Wired.Add($"{p.NickName}: {Describe.ParamData(p, 1)}");
+            var doc = node.OnPingDocument();
+            foreach (var id in node.ContextIds)
+            {
+                var o = doc?.FindObject(id, true);
+                if (o != null && o != node) c.Selected.Add(About(o));
+            }
             return c;
+        }
+
+        /// <summary>A selected node for the model: id, what it is (an Alien node's header), and its outputs right now.</summary>
+        internal static string About(IGH_DocumentObject o)
+        {
+            var sb = new StringBuilder();
+            string id = Describe.ShortId(o), nick = string.IsNullOrEmpty(o.NickName) || o.NickName == o.Name ? "" : $" (nickname \"{o.NickName}\")";
+            IEnumerable<IGH_Param> outs = Array.Empty<IGH_Param>();
+            if (o is AlienComponent a)
+            {
+                string src = a.ScriptPath != null && File.Exists(a.ScriptPath) ? File.ReadAllText(a.ScriptPath).Replace("\r\n", "\n") : null;
+                sb.Append($"[{id}] ").Append(a.ScriptPath == null ? "a blank Alien node" : $"Alien node \"{System.IO.Path.GetFileNameWithoutExtension(a.ScriptPath)}\"");
+                var what = Ui.ScriptInfo.Description(src);
+                if (what != null) sb.Append(": ").Append(what);
+                sb.Append('\n');
+                foreach (var line in (src ?? "").Split('\n').Take(40).Where(l => l.Contains("NODE_INPUTS") || l.Contains("NODE_OUTPUTS")))
+                    sb.Append("  ").Append(line.Trim()).Append('\n');
+                outs = a.Params.Output;
+            }
+            else if (o is IGH_Component comp)
+            {
+                sb.Append($"[{id}] Grasshopper component \"{comp.Name}\"{nick} ({comp.Category} > {comp.SubCategory})\n");
+                outs = comp.Params.Output;
+            }
+            else if (o is IGH_Param p)
+            {
+                sb.Append($"[{id}] Grasshopper {p.Name}{nick}: {Describe.ParamData(p, 2)}\n");
+                return sb.ToString().TrimEnd();
+            }
+            else return $"[{id}] {o.Name}{nick}";
+            var list = outs.ToList();
+            if (list.Count > 0)
+            {
+                sb.Append("  outputs now:\n");
+                foreach (var p in list)
+                {
+                    sb.Append($"  - {p.NickName}: {Describe.ParamData(p, 2)}\n");
+                    // Building-suite records are JSON text: one in full, so the model knows the fields.
+                    var rec = p.VolatileData?.AllData(true).Select(g => Scripting.Values.Unwrap(g) as string)
+                        .FirstOrDefault(x => x != null && x.TrimStart().StartsWith("{\"alien\"", StringComparison.Ordinal));
+                    if (rec != null) sb.Append("    one item in full: ").Append(rec.Length > 700 ? rec.Substring(0, 700) + "…" : rec).Append('\n');
+                }
+            }
+            return sb.ToString().TrimEnd();
         }
     }
 
@@ -157,7 +220,7 @@ namespace Alien.Ai
                 else
                 {
                     say($"{n}/{maxAttempts} · running…");
-                    result.Report = Apply(node, code, lang, request);
+                    result.Report = Apply(node, code, lang, request, Prompts.Wires(reply.Text));
                     string note;
                     (attempt.Status, problem, note) = Judge(node, result.Report);
                     attempt.Note = note;
@@ -186,8 +249,11 @@ namespace Alien.Ai
             return slash >= 0 ? model.Substring(slash + 1) : model;
         }
 
-        /// <summary>Write the script (creating it on the first run), wait for the re-solve, return the run report.</summary>
-        private static JObject Apply(AlienComponent node, string code, ScriptLanguage lang, string request)
+        /// <summary>
+        /// Write the script (creating it on the first run), wait for the re-solve, make the wires the model asked for
+        /// (from selected nodes to the new pins) and solve again, then return the run report.
+        /// </summary>
+        private static JObject Apply(AlienComponent node, string code, ScriptLanguage lang, string request, IReadOnlyList<(string input, string source, string output)> wires = null)
         {
             int stamp = UiThread.Run(() =>
             {
@@ -202,7 +268,44 @@ namespace Alien.Ai
                 return s;
             });
             Tools.WaitForSolve(node, stamp);
+            if (wires != null && wires.Count > 0)
+            {
+                int again = UiThread.Run(() =>
+                {
+                    int s = node.SolveStamp;
+                    if (Connect(node, wires) == 0) return -1;
+                    node.ExpireSolution(true);
+                    return s;
+                });
+                if (again >= 0) Tools.WaitForSolve(node, again);
+            }
             return UiThread.Run(() => Describe.Run(node, 1));
+        }
+
+        /// <summary>Wire selected nodes' outputs into the node's inputs (UI thread). Returns how many wires were added.</summary>
+        internal static int Connect(AlienComponent node, IReadOnlyList<(string input, string source, string output)> wires)
+        {
+            var doc = node.OnPingDocument();
+            if (doc == null) return 0;
+            var context = node.ContextIds.Select(g => doc.FindObject(g, true)).Where(o => o != null).ToList();
+            int added = 0;
+            foreach (var (input, source, output) in wires)
+            {
+                var target = node.Params.Input.FirstOrDefault(p => string.Equals(p.Name, input, StringComparison.OrdinalIgnoreCase));
+                var owner = context.FirstOrDefault(o => Describe.ShortId(o).StartsWith(source.ToLowerInvariant(), StringComparison.Ordinal))
+                            ?? context.FirstOrDefault(o => string.Equals(o.NickName, source, StringComparison.OrdinalIgnoreCase));
+                IGH_Param from = owner switch
+                {
+                    IGH_Param p => p,
+                    IGH_Component c => c.Params.Output.FirstOrDefault(p => string.Equals(p.NickName, output, StringComparison.OrdinalIgnoreCase))
+                                       ?? c.Params.Output.FirstOrDefault(p => string.Equals(p.Name, output, StringComparison.OrdinalIgnoreCase)),
+                    _ => null,
+                };
+                if (target == null || from == null || target.Sources.Contains(from)) continue;
+                target.AddSource(from);
+                added++;
+            }
+            return added;
         }
 
         /// <summary>(status, problem for the model, note for people) — problem is null when the node works.</summary>

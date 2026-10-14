@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using Newtonsoft.Json.Linq;
 
@@ -15,14 +16,25 @@ namespace Alien.Mcp
             var id = a.Value<string>("id");
             var node = UiThread.Run(() =>
             {
-                if (!string.IsNullOrWhiteSpace(id)) return RequireAlien(id);
                 var doc = RequireDoc(true);
-                if (!ScriptRepository.IsConfigured)
-                    throw new ToolException("Script repository not set. Ask the user for a folder, then call repo(set=...).");
-                var n = new AlienComponent { SuppressRepositoryPrompt = true };
-                n.CreateAttributes();
-                n.Attributes.Pivot = Placement(doc, a, false);
-                doc.AddObject(n, false);
+                var context = (a["context"] as JArray)?.Select(t => Resolve(doc, t.ToString()).InstanceGuid).ToList();
+                AlienComponent n;
+                if (!string.IsNullOrWhiteSpace(id)) n = RequireAlien(id);
+                else
+                {
+                    if (!ScriptRepository.IsConfigured)
+                        throw new ToolException("Script repository not set. Ask the user for a folder, then call repo(set=...).");
+                    n = new AlienComponent { SuppressRepositoryPrompt = true };
+                    n.CreateAttributes();
+                    if (a["x"] == null && a["near"] == null && context?.Count > 0) a["near"] = context.Last().ToString();
+                    n.Attributes.Pivot = Placement(doc, a, false);
+                    doc.AddObject(n, false);
+                }
+                if (context != null)
+                {
+                    n.ContextIds.Clear();
+                    n.ContextIds.AddRange(context.Where(g => g != n.InstanceGuid));
+                }
                 return n;
             });
 

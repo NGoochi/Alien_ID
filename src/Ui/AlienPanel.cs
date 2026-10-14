@@ -75,6 +75,7 @@ namespace Alien.Ui
             {
                 _hooked = true; // the model sorted more nodes into categories: refresh the listing
                 Library.Classified += () => Application.Instance.AsyncInvoke(() => { foreach (var p in Live.ToList()) p.Push(true); });
+                Theme.Changed += () => { Instances.RedrawCanvas(); foreach (var p in Live.ToList()) p.Push(true); };
             }
         }
 
@@ -179,6 +180,19 @@ namespace Alien.Ui
         private static AlienComponent Selected() =>
             Instances.ActiveCanvas?.Document?.SelectedObjects().OfType<AlienComponent>().FirstOrDefault();
 
+        /// <summary>The selected nodes: components and parameters (not groups or scribbles).</summary>
+        private static List<IGH_DocumentObject> Selection() =>
+            Instances.ActiveCanvas?.Document?.SelectedObjects().Where(o => o is IGH_Component || o is IGH_Param).ToList()
+            ?? new List<IGH_DocumentObject>();
+
+        private static JArray SelectionJson(List<IGH_DocumentObject> picked) => new JArray(picked.Select(o => new JObject
+        {
+            ["id"] = Describe.ShortId(o),
+            ["kind"] = o is AlienComponent ? "alien" : o is IGH_Param ? "param" : "component",
+            ["name"] = o is AlienComponent a ? (a.ScriptPath == null ? "blank Alien node" : Path.GetFileNameWithoutExtension(a.ScriptPath))
+                       : string.IsNullOrEmpty(o.NickName) ? o.Name : o.NickName,
+        }));
+
         private void Push(bool force)
         {
             if (!_ready) return;
@@ -201,8 +215,11 @@ namespace Alien.Ui
                 var state = new JObject
                 {
                     ["node"] = node == null ? null : NodeJson(node),
+                    ["selection"] = SelectionJson(Selection()),
                     ["library"] = _library,
                     ["categories"] = Library.CategoryList(),
+                    ["theme"] = Theme.Current.ToJson(),
+                    ["presets"] = Theme.PresetsJson(),
                     ["host"] = _sidecar ? "grasshopper" : "rhino",
                     ["settings"] = new JObject
                     {
@@ -304,8 +321,24 @@ namespace Alien.Ui
                         Push(true);
                         return;
                     case "describe":
-                        node ??= Place(null);
-                        node?.StartDescribe(m.Value<string>("text"), ScriptLanguages.Parse(m.Value<string>("lang") ?? "python"));
+                    {
+                        var text = m.Value<string>("text");
+                        var lang = ScriptLanguages.Parse(m.Value<string>("lang") ?? "python");
+                        // Several nodes selected, or one that isn't an Alien node, or asked for: a new node beside them
+                        // that sees what they output and is wired to them.
+                        var picked = Selection();
+                        bool fromSelection = picked.Count > 1 || (picked.Count == 1 && picked[0] is not AlienComponent)
+                                             || (picked.Count > 0 && (m.Value<bool?>("fromSelection") ?? false));
+                        if (fromSelection) Place(null, picked)?.StartDescribe(text, lang, picked.Select(o => o.InstanceGuid));
+                        else
+                        {
+                            node ??= Place(null);
+                            node?.StartDescribe(text, lang);
+                        }
+                        break;
+                    }
+                    case "theme":
+                        Theme.Set(m.Value<string>("preset"), m.Value<string>("background"), m.Value<string>("text"), m.Value<string>("accent"));
                         break;
                     case "new":
                         Place(null);
@@ -372,8 +405,11 @@ namespace Alien.Ui
             return $"Placed {Path.GetFileNameWithoutExtension(script)} with the inputs that made it.";
         }
 
-        /// <summary>A new Alien node in the middle of the canvas view (blank, or attached to a repository script), selected.</summary>
-        private static AlienComponent Place(string script)
+        /// <summary>
+        /// A new Alien node (blank, or attached to a repository script), selected: in the middle of the canvas view, or
+        /// to the right of the nodes it is built from.
+        /// </summary>
+        private static AlienComponent Place(string script, IReadOnlyList<IGH_DocumentObject> beside = null)
         {
             var canvas = Instances.ActiveCanvas;
             if (canvas == null)
@@ -393,7 +429,13 @@ namespace Alien.Ui
 
             var n = new AlienComponent { SuppressRepositoryPrompt = true };
             n.CreateAttributes();
-            n.Attributes.Pivot = FreeSpot(doc, canvas.Viewport.MidPoint);
+            var at = canvas.Viewport.MidPoint;
+            if (beside != null && beside.Count > 0)
+            {
+                var b = beside.Select(o => o.Attributes.Bounds).Aggregate(RectangleF.Union);
+                at = new PointF(b.Right + 160, b.Y + b.Height / 2);
+            }
+            n.Attributes.Pivot = FreeSpot(doc, at);
             doc.AddObject(n, false);
             if (!string.IsNullOrWhiteSpace(script)) n.SetScript(ScriptRepository.Resolve(script));
             doc.DeselectAll();

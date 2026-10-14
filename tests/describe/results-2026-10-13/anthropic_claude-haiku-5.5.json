@@ -1,0 +1,280 @@
+[
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 9.4
+   }
+  ],
+  "tokens": 4681,
+  "cost": 0.0011,
+  "report": {
+   "id": "0da68d75",
+   "status": "ok",
+   "ms": 1124.8,
+   "out": {
+    "points": "list[10] float; 0..3; e.g. 0",
+    "log": "\"No curve wired: using sample curve. Divided into 10 points.\""
+   }
+  },
+  "id": "0da68d75",
+  "script": "divide_curve_n_points_02.py",
+  "prompt": "divide a curve into N points",
+  "wall_s": 9.4
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 41.1,
+    "note": "TypeError: int() argument must be a string, a bytes-like object or a number, not 'NoneType' (line 35)"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 9.4
+   }
+  ],
+  "tokens": 16798,
+  "cost": 0.00516,
+  "report": {
+   "id": "f78e75c8",
+   "status": "ok",
+   "ms": 61.5,
+   "out": {
+    "panels": "list[60] Mesh; bbox 8.334,-10.936,0.083->11967.663,7977.23,3068.765; e.g. Mesh(14 v, 18 f)",
+    "log": "\"Built 60 panels from 60 cells (0 edge cells skipped), scale 1000.000\""
+   }
+  },
+  "id": "f78e75c8",
+  "script": "voronoi_panel_facade_surface_02.py",
+  "prompt": "a voronoi panel facade on a surface",
+  "wall_s": 50.7
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 7.5
+   }
+  ],
+  "tokens": 4491,
+  "cost": 0.00101,
+  "report": {
+   "id": "fd3a81fd",
+   "status": "ok",
+   "ms": 18.6,
+   "out": {
+    "result": "tree[2 branches] list[10] float; 0..30; e.g. 0",
+    "log": "\"4 branches, 10 items -> 2 branches\""
+   }
+  },
+  "id": "fd3a81fd",
+  "script": "flatten_regroup_tree_branch_02.py",
+  "prompt": "flatten and regroup a tree by branch index",
+  "wall_s": 7.5
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "error",
+    "s": 9.6,
+    "note": "TypeError: array index has type slice, expected an integer (line 15)"
+   },
+   {
+    "n": 2,
+    "status": "ok",
+    "s": 3.9
+   }
+  ],
+  "tokens": 10075,
+  "cost": 0.00222,
+  "report": {
+   "id": "52bd0569",
+   "status": "ok",
+   "ms": 24.0,
+   "out": {
+    "contours": "list[9] PolylineCurve; bbox -5000,-5000,1000->5000,5000,9000; e.g. PolylineCurve(len 18663.523, closed)",
+    "log": "\"no mesh wired: using sample sphere. 9 contours at 1.0 m interval (z 0.00 to 10.00 m)\""
+   }
+  },
+  "id": "52bd0569",
+  "script": "contour_mesh_intervals_02.py",
+  "prompt": "contour a mesh at intervals",
+  "wall_s": 13.6
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 9.0
+   }
+  ],
+  "tokens": 5010,
+  "cost": 0.00127,
+  "report": {
+   "id": "4b9bd46a",
+   "status": "ok",
+   "ms": 23.6,
+   "out": {
+    "offsets": "empty",
+    "log": "\"sample rectangle used; offset failed at step 1\""
+   }
+  },
+  "id": "4b9bd46a",
+  "script": "offset_closed_curve_inwards_02.py",
+  "prompt": "offset a closed curve inwards N times",
+  "wall_s": 9.0
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 9.4
+   }
+  ],
+  "tokens": 5001,
+  "cost": 0.00126,
+  "report": {
+   "id": "c9593502",
+   "status": "ok",
+   "ms": 20.5,
+   "out": {
+    "breps": "list[4] Brep; bbox 0,0,0->3000,3000,3500; e.g. Brep(6 faces, solid)",
+    "colors": "list[4] Color; e.g. #726016",
+    "areas": "list[4] float; 4..48; e.g. 4",
+    "log": "\"4 breps coloured, max area 48.00 m2 (sample geometry)\""
+   }
+  },
+  "id": "c9593502",
+  "script": "random_colour_breps_area_02.py",
+  "prompt": "random-colour breps by area",
+  "wall_s": 9.4
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 13.7
+   }
+  ],
+  "tokens": 6149,
+  "cost": 0.00184,
+  "report": {
+   "id": "ad98cfe0",
+   "status": "ok",
+   "ms": 18.0,
+   "out": {
+    "outlines": "list[6] NurbsCurve; bbox 0,0,0->3800,1400,0; e.g. NurbsCurve(len 3600, closed)",
+    "labels": "list[6] TextDot; bbox 600,700,0->3200,1500,0; e.g. Rhino.Geometry.TextDot",
+    "names": "list[6] str; e.g. \"P001\"",
+    "log": "\"6 panels numbered in 2 rows (scale 1000.000)\""
+   }
+  },
+  "id": "ad98cfe0",
+  "script": "number_panels_fabrication_02.py",
+  "prompt": "number panels for fabrication",
+  "wall_s": 13.7
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 8.6
+   }
+  ],
+  "tokens": 4863,
+  "cost": 0.00119,
+  "report": {
+   "id": "459f947f",
+   "status": "ok",
+   "ms": 17.6,
+   "out": {
+    "circles": "list[25] NurbsCurve; bbox -340,-340,0->4340,4340,0; e.g. NurbsCurve(len 1719.87, closed)",
+    "log": "\"sample grid used; sample attractor used; 25 circles; scale 1000.0\""
+   }
+  },
+  "id": "459f947f",
+  "script": "attractor_point_scaling_circles_03.py",
+  "prompt": "attractor-point scaling of circles",
+  "wall_s": 8.6
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 12.1
+   }
+  ],
+  "tokens": 5753,
+  "cost": 0.00164,
+  "report": {
+   "id": "ad442803",
+   "status": "ok",
+   "ms": 15.1,
+   "out": {
+    "dims_text": "\"3.00 x 2.00 x 1.50 m\"",
+    "width": "3",
+    "depth": "2",
+    "height": "1.5"
+   }
+  },
+  "id": "ad442803",
+  "script": "bounding_box_dimensions_as_02.py",
+  "prompt": "bounding-box dimensions as text",
+  "wall_s": 12.1
+ },
+ {
+  "ok": true,
+  "model": "anthropic/claude-haiku-5.5",
+  "attempts": [
+   {
+    "n": 1,
+    "status": "ok",
+    "s": 10.2
+   }
+  ],
+  "tokens": 5288,
+  "cost": 0.00141,
+  "report": {
+   "id": "6f9f18e7",
+   "status": "ok",
+   "ms": 21.4,
+   "out": {
+    "result": "Brep(1 faces)",
+    "log": "\"Lofted 4 curves along Z into 1 brep(s).\""
+   }
+  },
+  "id": "6f9f18e7",
+  "script": "loft_between_sorted_curves_02.py",
+  "prompt": "loft between sorted curves",
+  "wall_s": 10.2
+ }
+]

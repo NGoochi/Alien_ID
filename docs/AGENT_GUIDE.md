@@ -3,7 +3,8 @@
 Served section-by-section by the MCP `docs` tool. Keep sections short and factual.
 
 ## Workflow
-1. `canvas` — see what exists (ids are 8 chars; a unique nickname also works).
+1. `canvas` — see what exists (ids are 8 chars; a unique nickname also works). `sel: true` marks what the user has
+   selected: "this node" or "these" usually means the selection.
 2. `add` — `component: "python" | "csharp"` makes an Alien node + a new script in the user's repository
    (pass `code`, or omit for a starter template). Any other name places a native component
    (`"Number Slider"`, `"Panel"`, `"Custom Preview"`, `"Boolean Toggle"`, …).
@@ -33,9 +34,9 @@ First 200 lines. Python uses `#`, C# uses `//`. Several `NODE_INPUTS` lines are 
 - `default=` accepts numbers, `true/false`, `"text"`, `[x,y,z]`.
 - Names are pin identities: renaming a pin drops its wires. Keep names stable.
 - Outputs are generic; a type after `:` is documentation only.
-- After the header: `# CATEGORY: Geometry` (library group: Site & context, Massing & objects, Entourage, Materials,
-  Views & drawings, Data & lists, Geometry, Analysis, Utilities), then one comment line saying what the node does (the
-  library listing). Without a CATEGORY line the library sorts the node itself (model, else keywords).
+- After the header: `# CATEGORY: Geometry` (library group: Site & context, Building elements, Massing & objects,
+  Entourage, Materials, Views & drawings, Data & lists, Geometry, Analysis, Utilities), then one comment line saying
+  what the node does (the library listing). Without a CATEGORY line the library sorts the node itself (model, else keywords).
 
 ## Types
 `float int bool str Color Interval Point3d Vector3d Plane Line Circle Arc Box Rectangle3d Curve Surface Brep Mesh SubD Geometry Transform object`
@@ -86,7 +87,8 @@ parallelism (`System.Threading.Tasks.Parallel`), strict typing. Nodes can mix fr
 - Tolerance: `Rhino.RhinoDoc.ActiveDoc.ModelAbsoluteTolerance`, don't hardcode.
 - `RTree.Point3dKNeighbors` returns one `int[]` per needle.
 - Big outputs recompute everything downstream; keep counts low while iterating.
-- Pass structured data between nodes as lists/trees where possible; JSON strings through `str` pins work but hide structure.
+- Pass structured data between nodes as lists/trees where possible. Python objects (class instances) don't survive a
+  wire: they arrive as their repr text. For records, use JSON strings (as the building suite does; see Building records).
 - Plugins that keep named definitions in the document (styles, blocks) usually reuse the stored definition when a
   same-named one is baked again: after changing a style's recipe, give it a new name (or purge the old one).
 - Wire by index (`id.2`) when a component has two inputs with the same nickname.
@@ -108,9 +110,20 @@ Rhino: doc · objects · layers · view · capture · rhino · run_code. Referen
   Materials: give the target layer a render material and baked objects pick it up (by-layer).
 - `generate(prompt, id?)` hands a node to the user's configured model (describe-a-node): it writes, runs and fixes the
   script itself. Cheaper than writing it yourself for routine nodes; you still get the run report back.
+  `context: [ids]` builds a new node that works with those nodes: the model sees what each outputs (building records
+  in full) and answers with a `WIRES:` line that Alien wires before the first run. The panel does the same when the
+  user has several nodes selected.
 - `run_code` runs a throwaway snippet (assign `result` to get a value back) — use it to explore APIs instead of guessing.
 - `set_values(ids=[...], preview=false)` hides raw previews (e.g. of generator nodes feeding coloured Custom Previews);
   `canvas` marks hidden nodes with `"preview": false`.
+
+## Building records
+The building suite (`bim_site`, `levels`, `grids`, `wall_types`, `walls`, `doors`, `windows`, `curtain_wall`,
+`beams_columns`, `structure_edit`, `connectors`) passes elements between nodes as JSON text, one record per element:
+`{"alien": "level", "name": "Level 1", "code": "L01", "elevation": 3.2, ...}`. Lengths are metres in world coordinates;
+geometry pins are in model units. Read records with `json.loads` (suite nodes use `alien_bim.read()`, which also
+takes lists and dicts). Kinds: site, level, grid, wall_type, wall, opening, member, joint, curtain_wall; the fields
+are listed at the top of `suite/alien_bim.py`. Record inputs are typed `object` (no control on the node).
 
 ## Rhino
 - `doc()` first: file, units, tolerance, counts, selection, active view, Grasshopper state, versions.

@@ -55,6 +55,17 @@ namespace Alien
             Save();
         }
 
+        /// <summary>A setting of any JSON shape (e.g. "theme"), or null.</summary>
+        public static JToken SettingToken(string key) => Settings[key];
+
+        /// <summary>Set (or with null, remove) a setting of any JSON shape and save.</summary>
+        public static void SetSettingToken(string key, JToken value)
+        {
+            if (value == null || value.Type == JTokenType.Null) Settings.Remove(key);
+            else Settings[key] = value;
+            Save();
+        }
+
         /// <summary>Make sure the file exists and shows the describe-a-node keys, so people know where the key goes.</summary>
         public static void EnsureSettingsFile()
         {
