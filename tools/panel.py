@@ -4,6 +4,7 @@
   python3 panel.py '{"type":"describe","text":"make the grid hexagonal"}'
   python3 panel.py '{"type":"dock","where":"rhino"}'      # or "grasshopper"
   python3 panel.py --js "document.getElementById('tabAssets').click()"   # clicks, tabs, filters (page-only state)
+  python3 panel.py --state out.json      # save the page's current state, e.g. for tools/pane_snapshot.swift
 """
 import json
 import sys
@@ -24,6 +25,12 @@ else
 }
 """
 
+if sys.argv[1] == "--state":  # Rhino writes the file: run_code shortens long results
+    body = """var web = (Eto.Forms.WebView)t.GetField("_web", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(panel);
+    System.IO.File.WriteAllText(%s, web.ExecuteScript("return JSON.stringify(state)"));
+    result = "saved";""" % json.dumps(os.path.abspath(sys.argv[2]))
+    print(call("run_code", {"language": "csharp", "code": PANEL % body})["text"])
+    sys.exit(0)
 if sys.argv[1] == "--js":
     body = """var web = (Eto.Forms.WebView)t.GetField("_web", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(panel);
     web.ExecuteScriptAsync(%s);

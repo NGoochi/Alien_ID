@@ -22,7 +22,7 @@ namespace Alien.Mcp
     /// </summary>
     public sealed class McpServer
     {
-        public const string Version = "0.01-alpha";
+        public const string Version = "0.02-alpha";
         private static readonly string[] ProtocolVersions = { "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05" };
 
         public static McpServer Instance { get; } = new McpServer();

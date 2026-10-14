@@ -1,7 +1,7 @@
 {
   "name": "Alien",
-  "version": "0.01-alpha",
-  "generated": "2026-10-13",
+  "version": "0.02-alpha",
+  "generated": "2026-10-14",
   "generator": "tools/docs_json.py (pins from the suite headers, categories from src/Library.cs, MCP tools from the server)",
   "summary": "Alien is a Grasshopper (Rhino 8) plugin: a node whose logic lives in a plain Python 3 or C# script file, with pins and on-node controls from a header comment. Describe a node in plain English and a model writes the script, runs it and fixes its own errors. Nodes are shareable files; AI agents drive everything through a built-in MCP server. It ships with a suite of architectural nodes and keeps what they generate in a library.",
   "status": "Working prototype for a uni mini-MBA pitch (mock business, no real sales). Phase 1 of BRIEF.md is done, plus the panel, library categories, the generated-asset library and the suite below. The online library, accounts and payments (Phases 2-3) are not built.",
@@ -68,7 +68,7 @@
     ]
   },
   "install": {
-    "release": "Download Alien-<version>.zip from https://github.com/NGoochi/Alien_ID/releases, unzip, close Rhino and run install-mac.command (macOS; right-click > Open if Gatekeeper warns) or install-windows.bat (Windows; unblock the zip first). It copies Alien.gha into Grasshopper's Libraries folder and clears the download quarantine / Mark of the Web. Full steps: installer/INSTALL.md. Windows needs Rhino on .NET Core (SetDotNetRuntime).",
+    "release": "From https://github.com/NGoochi/Alien_ID/releases, with Rhino closed: Windows, run Alien-<version>-Setup.exe (per user, no admin; SmartScreen: More info > Run anyway). It installs Alien.gha into %APPDATA%\\Grasshopper\\Libraries, writes settings (script folder Documents\\Alien scripts, the OpenRouter key if pasted on its optional page), adds an uninstaller to Settings > Apps, and can start Rhino with Grasshopper. macOS, open Alien-<version>.pkg (Gatekeeper: System Settings > Privacy & Security > Open Anyway); it installs for the current user only and refuses while Rhino runs. Then the panel's Help (?) links OpenRouter. A by-hand zip has Alien.gha and the old scripts. Windows needs Rhino on .NET Core (SetDotNetRuntime). Full steps: installer/INSTALL.md.",
     "requirements": [
       "Rhino 8 (macOS or Windows)",
       ".NET SDK 7 or later (building from source only)",
@@ -78,8 +78,8 @@
       "Close Rhino completely (macOS: Cmd+Q).",
       "Run `dotnet build -c Release` in src/: it builds Alien.gha and copies it into Grasshopper's Libraries folder (Windows %APPDATA%\\Grasshopper\\Libraries; macOS ~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (b45a29b1-...)/Libraries). Rhino paths are in src/Alien.csproj (override with -p:RhinoSystemDir=... -p:RhinoGhDir=...).",
       "Start Rhino and open Grasshopper: the MCP server starts with it.",
-      "Place an Alien node (tab Alien > Script) and pick a script repository folder the first time.",
-      "Right-click a node > Open settings file, and add \"openrouterKey\". The file is re-read live."
+      "Place an Alien node (tab Alien > Script). The script repository is Documents/Alien scripts unless one was chosen (right-click a node > Script repository).",
+      "Open the Alien panel, click ? (Help) and follow Connect OpenRouter; or add \"openrouterKey\" to settings.json (re-read live)."
     ]
   },
   "settings": {
@@ -333,6 +333,12 @@
       "Dock / undock",
       "Close"
     ],
+    "help_view": [
+      "? in the header; opens by itself the first time when no key is linked; a banner in the main view links to it while no key is set",
+      "Connect OpenRouter, step by step: create an account, add credit, create an API key (with a credit limit), paste it and Link key; buttons open the OpenRouter pages in the browser (only openrouter.ai and the Alien repo are allowed)",
+      "Link key checks the key with OpenRouter (GET /api/v1/key and /api/v1/credits), saves it only if accepted (or if OpenRouter can't be reached), and shows the credit left, the key's own limit and its expiry; Check credit and Remove for a linked key; the page only ever sees 'sk-or-v1-…' + 4 characters",
+      "Getting started, What costs money, Troubleshooting, Open settings file"
+    ],
     "settings_view": [
       "Theme presets: Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark, High Contrast, Light, GitHub Light, Solarized Light",
       "Background, text and accent colour pickers (with hex fields); changing one makes a custom theme",
@@ -530,8 +536,16 @@
         "what": "Simulate a click on a node (tests its mouse handling)"
       },
       {
-        "tool": "tools/panel.py '<json>' | --js '<script>'",
-        "what": "Send the panel a message as its page would, or run JavaScript in it"
+        "tool": "tools/panel.py '<json>' | --js '<script>' | --state out.json",
+        "what": "Send the panel a message as its page would, run JavaScript in it, or save its state"
+      },
+      {
+        "tool": "tools/pane_snapshot.swift <state.json> <out.png> [js]",
+        "what": "Render the panel page off screen (WebKit) with a saved state"
+      },
+      {
+        "tool": "tools/package.sh",
+        "what": "Build Setup.exe (NSIS), the .pkg, the by-hand zip and checksums into dist/"
       },
       {
         "tool": "tools/windows.swift",
@@ -3522,7 +3536,7 @@
       "Every tool that changes something returns the new state: don't poll."
     ],
     "server_instructions": "Alien: Grasshopper nodes backed by script files (Python 3 or C#) in the user's script repository.\nPins come from header comments ('//' instead of '#' in C#):\n  # NODE_INPUTS: pts:list[Point3d], n:int | \"count\" min=1 max=50 default=5\n  # NODE_OUTPUTS: curves, log\nUnwired input -> manual value (set_values) -> header default -> None/[] (C#: default(T)). Outputs are top-level variables with those names; nested lists become data trees.\nLoop: canvas -> add (python|csharp|any GH component; nodes+links for a whole chain) -> wire -> script_edit (returns ok/error+line/output summary) -> inspect / capture.\nPick Python for quick iteration and libraries; C# for heavy loops (simulations, 100k+ items) or strict typing.\nRhino side: doc (context, save, import), objects (list/select/zoom), layers (tree, visibility, materials), view (camera, display), rhino (commands, find, help). search finds GH components.\nIds are the 8-char ids from canvas/objects (a unique nickname also works for nodes). docs(topic) has syntax, types, gotchas.",
-    "read_from": "live server, 2026-10-13",
+    "read_from": "live server, 2026-10-14",
     "tools": [
       {
         "name": "canvas",

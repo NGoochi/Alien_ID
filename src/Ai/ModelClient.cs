@@ -50,7 +50,8 @@ namespace Alien.Ai
             var key = ScriptRepository.Setting("openrouterKey");
             if (string.IsNullOrWhiteSpace(key))
                 throw new InvalidOperationException(
-                    $"No OpenRouter key: add \"openrouterKey\" to {ScriptRepository.SettingsFile}, or pick a local model (\"ollama:qwen3:8b\").");
+                    "No OpenRouter key yet: open the Alien panel's Help (?) and follow \"Connect OpenRouter\" (about 3 minutes), " +
+                    "or pick a local model (\"ollama:qwen3:8b\").");
             return new ModelChoice { Label = label, Model = label, Endpoint = OpenRouterUrl, Key = key.Trim() };
         }
     }

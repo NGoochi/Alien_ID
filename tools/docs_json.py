@@ -470,11 +470,14 @@ DOC = {
         ],
     },
     "install": {
-        "release": "Download Alien-<version>.zip from https://github.com/NGoochi/Alien_ID/releases, unzip, close Rhino and "
-                   "run install-mac.command (macOS; right-click > Open if Gatekeeper warns) or install-windows.bat (Windows; "
-                   "unblock the zip first). It copies Alien.gha into Grasshopper's Libraries folder and clears the download "
-                   "quarantine / Mark of the Web. Full steps: installer/INSTALL.md. Windows needs Rhino on .NET Core "
-                   "(SetDotNetRuntime).",
+        "release": "From https://github.com/NGoochi/Alien_ID/releases, with Rhino closed: Windows, run "
+                   "Alien-<version>-Setup.exe (per user, no admin; SmartScreen: More info > Run anyway). It installs Alien.gha "
+                   "into %APPDATA%\\Grasshopper\\Libraries, writes settings (script folder Documents\\Alien scripts, the "
+                   "OpenRouter key if pasted on its optional page), adds an uninstaller to Settings > Apps, and can start Rhino "
+                   "with Grasshopper. macOS, open Alien-<version>.pkg (Gatekeeper: System Settings > Privacy & Security > Open "
+                   "Anyway); it installs for the current user only and refuses while Rhino runs. Then the panel's Help (?) "
+                   "links OpenRouter. A by-hand zip has Alien.gha and the old scripts. Windows needs Rhino on .NET Core "
+                   "(SetDotNetRuntime). Full steps: installer/INSTALL.md.",
         "requirements": ["Rhino 8 (macOS or Windows)", ".NET SDK 7 or later (building from source only)",
                          "An OpenRouter API key for describe-a-node and the AI nodes (or Ollama for local describe models)"],
         "steps_from_source": [
@@ -484,8 +487,10 @@ DOC = {
             "Grasshopper (b45a29b1-...)/Libraries). Rhino paths are in src/Alien.csproj (override with -p:RhinoSystemDir=... "
             "-p:RhinoGhDir=...).",
             "Start Rhino and open Grasshopper: the MCP server starts with it.",
-            "Place an Alien node (tab Alien > Script) and pick a script repository folder the first time.",
-            "Right-click a node > Open settings file, and add \"openrouterKey\". The file is re-read live.",
+            "Place an Alien node (tab Alien > Script). The script repository is Documents/Alien scripts unless one was "
+            "chosen (right-click a node > Script repository).",
+            "Open the Alien panel, click ? (Help) and follow Connect OpenRouter; or add \"openrouterKey\" to settings.json "
+            "(re-read live).",
         ],
     },
     "settings": {
@@ -599,6 +604,15 @@ DOC = {
         "hosts": ["Default: a window glued to the side of the Grasshopper editor that moves with it (macOS child window; "
                   "Windows owned window, untested).", "Setting panel: \"rhino\" (or the dock button) makes it a Rhino panel."],
         "header": ["The Alien mark (in the accent)", "Model picker for describe-a-node", "Settings (⚙)", "Dock / undock", "Close"],
+        "help_view": ["? in the header; opens by itself the first time when no key is linked; a banner in the main view "
+                      "links to it while no key is set",
+                      "Connect OpenRouter, step by step: create an account, add credit, create an API key (with a credit limit), "
+                      "paste it and Link key; buttons open the OpenRouter pages in the browser (only openrouter.ai and the "
+                      "Alien repo are allowed)",
+                      "Link key checks the key with OpenRouter (GET /api/v1/key and /api/v1/credits), saves it only if "
+                      "accepted (or if OpenRouter can't be reached), and shows the credit left, the key's own limit and its "
+                      "expiry; Check credit and Remove for a linked key; the page only ever sees 'sk-or-v1-…' + 4 characters",
+                      "Getting started, What costs money, Troubleshooting, Open settings file"],
         "settings_view": ["Theme presets: Alien, Cursor Dark, One Dark, Dracula, Monokai, Nord, Tokyo Night, Solarized Dark, "
                           "High Contrast, Light, GitHub Light, Solarized Light",
                           "Background, text and accent colour pickers (with hex fields); changing one makes a custom theme",
@@ -684,7 +698,9 @@ DOC = {
             {"tool": "tools/mcp.py <tool> '<json>'", "what": "Call one MCP tool"},
             {"tool": "tools/capture.py out.png '<json>'", "what": "Save a viewport or canvas capture"},
             {"tool": "tools/click.py <nickname> <x> <y> [double]", "what": "Simulate a click on a node (tests its mouse handling)"},
-            {"tool": "tools/panel.py '<json>' | --js '<script>'", "what": "Send the panel a message as its page would, or run JavaScript in it"},
+            {"tool": "tools/panel.py '<json>' | --js '<script>' | --state out.json", "what": "Send the panel a message as its page would, run JavaScript in it, or save its state"},
+            {"tool": "tools/pane_snapshot.swift <state.json> <out.png> [js]", "what": "Render the panel page off screen (WebKit) with a saved state"},
+            {"tool": "tools/package.sh", "what": "Build Setup.exe (NSIS), the .pkg, the by-hand zip and checksums into dist/"},
             {"tool": "tools/windows.swift", "what": "List window ids for screencapture -l"},
             {"tool": "tools/docs_json.py [--check]", "what": "Write (and check) docs/docs.json"},
             {"tool": "tests/describe/suite.py <dir> <models...>", "what": "Run the describe-a-node test"},

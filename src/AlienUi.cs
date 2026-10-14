@@ -82,6 +82,25 @@ namespace Alien
             OpenInEditor(ScriptRepository.SettingsFile);
         }
 
+        /// <summary>
+        /// Open a web page in the default browser: only OpenRouter and Alien's own pages (the panel's help links), so a
+        /// link shown in the panel can never send people anywhere else.
+        /// </summary>
+        public static bool OpenUrl(string url)
+        {
+            if (!Uri.TryCreate(url ?? "", UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return false;
+            bool allowed = uri.Host == "openrouter.ai"
+                           || (uri.Host == "github.com" && uri.AbsolutePath.StartsWith("/NGoochi/Alien_ID", StringComparison.OrdinalIgnoreCase));
+            if (!allowed) return false;
+            try
+            {
+                if (OperatingSystem.IsMacOS()) Start("open", $"\"{uri.AbsoluteUri}\"");
+                else Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                return true;
+            }
+            catch { return false; }
+        }
+
         public static void Reveal(string path)
         {
             if (string.IsNullOrEmpty(path)) return;
