@@ -445,27 +445,52 @@ DOC = {
                "the script, runs it and fixes its own errors. Nodes are shareable files; AI agents drive everything through "
                "a built-in MCP server. It ships with a suite of architectural nodes and keeps what they generate in a library.",
     "status": "Working prototype for a uni mini-MBA pitch (mock business, no real sales). Phase 1 of BRIEF.md is done, plus "
-              "the panel, library categories, the generated-asset library and the suite below. The online library, "
-              "accounts and payments (Phases 2-3) are not built.",
-    "platforms": "Rhino 8 on macOS (tested) and Windows (builds; the sidecar window and controls are untested there).",
+              "the panel (Help, themes, describe from a selection), library categories, the generated-asset library and "
+              "the suite below, including the building suite. The online library, accounts and payments (Phases 2-3, "
+              "ROADMAP.md) are not built.",
+    "release": {
+        "version": "0.02-alpha", "date": "2026-10-14", "tag": "v0.02-alpha", "prerelease": True,
+        "page": "https://github.com/NGoochi/Alien_ID/releases/tag/v0.02-alpha",
+        "assets": [
+            {"file": "Alien-0.02-alpha-Setup.exe", "for": "Windows installer (NSIS; per user, no admin; not yet run on Windows)"},
+            {"file": "Alien-0.02-alpha.pkg", "for": "macOS installer (current user; refuses while Rhino runs)"},
+            {"file": "Alien-0.02-alpha.zip", "for": "Install by hand: Alien.gha, INSTALL.md, install scripts"},
+            {"file": "Alien-0.02-alpha.sha256", "for": "SHA-256 checksums of the three"},
+        ],
+        "download_base": "https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/",
+        "changelog": "CHANGELOG.md",
+        "unsigned": "Windows SmartScreen: More info > Run anyway. macOS Gatekeeper: System Settings > Privacy & Security > "
+                    "Open Anyway.",
+        "earlier": [{"version": "0.01-alpha", "date": "2026-10-13", "what": "The zip with install-mac.command and install-windows.bat"}],
+    },
+    "platforms": "Rhino 8 on macOS (tested, installer included) and Windows (builds, Setup.exe built; neither the installer, "
+                 "the sidecar window nor the controls are tested there yet).",
     "repository": {
         "url": "https://github.com/NGoochi/Alien_ID (private)",
         "layout": [
             {"path": "src/", "what": "The plugin (C#, net7.0): AlienComponent (the node), AlienAttributes (its drawing and "
                                      "mouse handling), ScriptRepository (settings, script folder), Suite, Library, Assets, AlienUi"},
             {"path": "src/Scripting/", "what": "HeaderParser, ScriptRunner (RhinoCode), TypeMap, Values, RunResult"},
-            {"path": "src/Ai/", "what": "Describe-a-node: ModelClient, Generator (retry loop), Prompts, Transcript"},
-            {"path": "src/Ui/", "what": "AlienPanel (pane.html in an Eto WebView), AlienSidecar, NodeControls, InlineEditor"},
+            {"path": "src/Ai/", "what": "Describe-a-node: ModelClient, Generator (retry loop), Prompts, Transcript; "
+                                        "OpenRouterAccount (the Help screen's key check)"},
+            {"path": "src/Ui/", "what": "AlienPanel (pane.html in an Eto WebView), AlienSidecar, NodeControls, InlineEditor, "
+                                        "Theme, Logo, Suggest, ImageDrop"},
             {"path": "src/Mcp/", "what": "McpServer (Streamable HTTP, JSON), Tools*.cs, Describe (run reports), UiThread"},
             {"path": "suite/", "what": "The preloaded nodes and helpers, embedded in the plugin at build time"},
             {"path": "docs/AGENT_GUIDE.md", "what": "Agent reference: served by the docs MCP tool and part of describe-a-node's prompt"},
             {"path": "docs/DEV_NOTES.md", "what": "Developer facts: build, threading, pin rebuilds, RhinoCode, UI, Rhino API facts, data"},
             {"path": "docs/docs.json", "what": "This file (tools/docs_json.py writes it)"},
             {"path": "tests/describe/", "what": "Describe-a-node test: 10 prompts, results per model"},
-            {"path": "tools/", "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, these docs, "
-                                       "package.sh (the release zip)"},
-            {"path": "installer/", "what": "The release zip's contents besides Alien.gha: INSTALL.md, README.txt, installers, settings example"},
+            {"path": "tests/bim/chain.py", "what": "Places, wires and checks the whole building suite on the open canvas"},
+            {"path": "tools/", "what": "Drive a running Rhino from a shell: MCP calls, captures, clicks, the panel, off-screen "
+                                       "panel renders, these docs, package.sh (the release downloads)"},
+            {"path": "installer/", "what": "windows/ (Alien.nsi, settings.ps1), mac/ (distribution.xml, welcome and conclusion "
+                                           "pages), art/ (icon and wizard images from the mark), INSTALL.md, README.txt, the "
+                                           "by-hand scripts, a settings example"},
+            {"path": "docs/brand/", "what": "The Alien mark (SVG)"},
+            {"path": "CHANGELOG.md", "what": "What changed in each release"},
             {"path": "BRIEF.md", "what": "Product brief: tiers, stack, phases"},
+            {"path": "ROADMAP.md", "what": "Plan for Phases 2-3 (Alien Cloud: Cloudflare, accounts, library, credits, Stripe test mode)"},
             {"path": "AGENTS.md / CLAUDE.md", "what": "Project context for coding agents"},
         ],
     },
@@ -715,7 +740,8 @@ DOC = {
     "roadmap": ["Phase 2: a Cloudflare Worker, R2 and D1 for a shared library of nodes and generated assets (publish and "
                 "install from the panel, review before install), a hosted model provider, a gallery site.",
                 "Phase 3: Google sign-in, credits and Stripe (test mode), private nodes for Pro.",
-                "Test on Windows: the build, the sidecar, the controls.",
+                "Test 0.02-alpha on Windows: Setup.exe first, then the sidecar, the controls and the Help links.",
+                "Sign the installers (Authenticode; Apple Developer ID and notarisation).",
                 "vic_site_map: optional draped site curves, road markings, trees outside Tree Urban coverage.",
                 "Dynamic inputs (pins that change with the result), left for later at the user's request."],
 }

@@ -5,6 +5,13 @@ English description. It comes with a suite of architectural nodes (Victorian sit
 trees; plan, section and elevation views; 3D objects and material textures from a prompt; scale figures and trees;
 and a first building suite: site, levels, grids, walls, doors, windows, curtain walls, beams, columns and connectors).
 
+**Downloads** ([release page](https://github.com/NGoochi/Alien_ID/releases/tag/v0.02-alpha), 14 Oct 2026; what's new:
+[CHANGELOG.md](https://github.com/NGoochi/Alien_ID/blob/main/CHANGELOG.md)):
+[Alien-0.02-alpha-Setup.exe](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha-Setup.exe) (Windows) ·
+[Alien-0.02-alpha.pkg](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.pkg) (macOS) ·
+[Alien-0.02-alpha.zip](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.zip) (by hand) ·
+[checksums](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.sha256).
+
 **This is an alpha.** It is built and tested on Rhino 8 for macOS. The Windows installer and plugin are built the same
 way but haven't been tried on a Windows PC yet. Please report what breaks.
 

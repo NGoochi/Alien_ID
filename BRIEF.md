@@ -2,6 +2,9 @@
 
 *Working name TBC. Uni mini-MBA pitch, one week. A mock business: no real sales, Stripe stays in test mode.*
 
+*Status (14 Oct 2026): Phase 1 is done and released as [0.02-alpha](https://github.com/NGoochi/Alien_ID/releases/tag/v0.02-alpha)
+(installers for Windows and macOS; see [CHANGELOG.md](CHANGELOG.md)). Phases 2–3 are planned in [ROADMAP.md](ROADMAP.md).*
+
 ## The product in one line
 
 A Grasshopper node you describe in plain English, which writes and fixes its own code, plus a shared library of
