@@ -5,9 +5,22 @@ a two-line header. You describe what you want in plain English and a model write
 own errors. Nodes live as plain files, so they can be shared, and AI agents can drive everything through a built-in
 MCP server.
 
-*Status: alpha 0.02 ([releases](https://github.com/NGoochi/Alien_ID/releases)), a working prototype for a uni mini-MBA
-pitch (mock business: no real sales). Phase 1 of [BRIEF.md](BRIEF.md) is
-done; the online library, accounts and payments (Phases 2–3) are not built yet.*
+*Status: [alpha 0.02](https://github.com/NGoochi/Alien_ID/releases/tag/v0.02-alpha) (14 Oct 2026; [what's new](CHANGELOG.md)), a working prototype for a uni
+mini-MBA pitch (mock business: no real sales). Phase 1 of [BRIEF.md](BRIEF.md) is done; the online library, accounts
+and payments (Phases 2–3, planned in [ROADMAP.md](ROADMAP.md)) are not built yet.*
+
+## Download
+
+| | |
+|---|---|
+| **Windows** | [Alien-0.02-alpha-Setup.exe](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha-Setup.exe): run it with Rhino closed. No admin rights; it can link your OpenRouter key and start Rhino for you |
+| **macOS** | [Alien-0.02-alpha.pkg](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.pkg): open it with Rhino closed. Installs for your user only |
+| By hand | [Alien-0.02-alpha.zip](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.zip) (Alien.gha and install scripts) · [checksums](https://github.com/NGoochi/Alien_ID/releases/download/v0.02-alpha/Alien-0.02-alpha.sha256) |
+
+Then open Grasshopper, place a node from the **Alien** tab, click **PANEL**, and click **?**: Help walks you through
+connecting OpenRouter. The installers aren't signed yet, so Windows asks *More info > Run anyway* and macOS *System
+Settings > Privacy & Security > Open Anyway* the first time. Full guide: [installer/INSTALL.md](installer/INSTALL.md).
+Windows is untested in this alpha.
 
 ```python
 # NODE_INPUTS: base:Curve, count:int | "divisions" min=2 max=200 default=20
@@ -56,7 +69,8 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 - **Describe-a-node:** the request, the current script and the wired inputs go to a model, which writes the whole
   script. Alien runs it, and any error (Python traceback, C# compiler message) goes back to the model to fix, up to 4
   attempts. The default is Claude Haiku 5.5 through OpenRouter; any OpenRouter model, or a local Ollama model, also
-  works. A test of 10 prompts went 10/10 on the first try, about US$0.001 per node ([tests/describe](tests/describe/README.md)).
+  works. The 10-prompt test works 10/10 (8–10 on the first try, the rest fixed by the loop) at about US$0.001–0.002 per node
+  ([tests/describe](tests/describe/README.md)).
 - **Preloaded suite** ([suite/](suite/README.md)), shipped inside the plugin and copied into your script folder:
 
   | Node | What it does |
@@ -81,14 +95,10 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
 ## Install
 
-**From a release (recommended):** download the installer from the
-[releases page](https://github.com/NGoochi/Alien_ID/releases) and run it with Rhino closed:
-`Alien-0.02-alpha-Setup.exe` on Windows (no admin rights needed; it can link your OpenRouter key and start Rhino
-for you) or `Alien-0.02-alpha.pkg` on macOS. Both are unsigned for now, so Windows SmartScreen asks for *More info >
-Run anyway* and macOS for *System Settings > Privacy & Security > Open Anyway*. Then open the Alien panel and click
-**?**: Help walks you through creating an OpenRouter account and linking the key, step by step.
-[installer/INSTALL.md](installer/INSTALL.md) has the full steps, costs, uninstalling and a by-hand zip. One
-`Alien.gha` serves both platforms; Windows is untested in this alpha.
+**From a release (recommended):** see [Download](#download) above. The installers put `Alien.gha` into Grasshopper's
+Libraries folder (`%APPDATA%\Grasshopper\Libraries` on Windows; `~/Library/Application Support/McNeel/Rhinoceros/8.0/
+Plug-ins/Grasshopper (b45a29b1-…)/Libraries` on macOS); one `Alien.gha` serves both platforms.
+[installer/INSTALL.md](installer/INSTALL.md) covers first run, costs, updating, uninstalling and installing by hand.
 
 **From source:**
 
@@ -160,8 +170,8 @@ The server tells the agent how to work (its `initialize` instructions and the `d
 | Path | What |
 |---|---|
 | `src/` | The plugin (C#, net7.0); `Library.cs` (node categories), `Assets.cs` (generated assets), `Suite.cs` |
-| `src/Ai/` | Describe-a-node: model client, retry loop, prompts, request history |
-| `src/Ui/` | The Alien panel (`pane.html` in a WebView), the sidecar, node controls, the text editor |
+| `src/Ai/` | Describe-a-node: model client, retry loop, prompts, request history; the Help screen's OpenRouter key check |
+| `src/Ui/` | The Alien panel (`pane.html` in a WebView: describe, library, Generated, Help, settings), the sidecar, node controls, the text editor, themes, the Alien mark |
 | `src/Mcp/` | The MCP server and its tools |
 | `src/Scripting/` | Header parser, script runner (RhinoCode), value conversion |
 | `suite/` | The preloaded nodes; embedded in the plugin at build time |
@@ -169,9 +179,12 @@ The server tells the agent how to work (its `initialize` instructions and the `d
 | `docs/DEV_NOTES.md` | Hard-won facts: build, threading, pin rebuilds, RhinoCode, UI, describe-a-node |
 | `docs/docs.json` | The full reference as JSON: every node and its pins, the panel, library, assets, settings, MCP tools (`python3 tools/docs_json.py` rewrites it) |
 | `tests/describe/` | The describe-a-node test (10 prompts, several models) and its results |
-| `tools/` | Shell tools to drive and check a running Rhino (MCP calls, captures, simulated clicks), and `package.sh` |
-| `installer/` | What goes in the release zip: INSTALL.md, README.txt, the macOS and Windows installers, a settings example |
-| `BRIEF.md` | The product brief: tiers, stack, phases |
+| `tests/bim/` | `chain.py`: places, wires and checks the whole building suite on the open canvas |
+| `tools/` | Shell tools to drive and check a running Rhino (MCP calls, captures, simulated clicks, off-screen panel renders), and `package.sh` (builds the release downloads) |
+| `installer/` | `windows/` (the NSIS script for Setup.exe and its settings helper), `mac/` (the .pkg definition and pages), `art/` (icon and wizard images drawn from the mark), INSTALL.md, and the by-hand scripts for the zip |
+| `docs/brand/` | The Alien mark (SVG) |
+| `CHANGELOG.md` | What changed in each release |
+| `BRIEF.md`, `ROADMAP.md` | The product brief (tiers, stack, phases) and the plan for Phases 2–3 (Alien Cloud) |
 | `AGENTS.md` | Project context for coding agents (also loaded by Claude Code via `CLAUDE.md`) |
 
 ## Development

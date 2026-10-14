@@ -181,7 +181,10 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
   ask once); the exe has not been run on Windows yet.
 - **Publish:** merge to main, then `gh release create v<version> dist/Alien-<version>-Setup.exe dist/Alien-<version>.pkg
   dist/Alien-<version>.zip dist/Alien-<version>.sha256 --prerelease --title "Alien <version>"`.
-- 0.01-alpha (13 Oct 2026) was the zip with install scripts. 0.02-alpha adds the installers.
+- **Release notes:** add the release to [CHANGELOG.md](CHANGELOG.md) before tagging, and point the README's
+  Download table and installer/INSTALL.md's links at the new version.
+- **Published:** 0.01-alpha (13 Oct 2026, the zip with install scripts) and 0.02-alpha (14 Oct 2026, `v0.02-alpha`:
+  Setup.exe, .pkg, zip, sha256; checksums verified after download). The Setup.exe has not been run on Windows yet.
 
 ## Conventions
 
@@ -211,7 +214,10 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
 
 ## Next up
 
-- Test on Windows: the build, the sidecar (an owned window), and the controls.
+- Test 0.02-alpha on Windows: run Setup.exe (the key page, settings.ps1, the uninstaller, Start Rhino), then the
+  plugin itself (the sidecar as an owned window, the controls, the Help screen's links).
+- Sign the installers (an Authenticode certificate for Setup.exe; an Apple Developer ID and notarisation for the .pkg)
+  so SmartScreen and Gatekeeper stop asking.
 - **Library (Phase 2):** publish and install from the panel; a Cloudflare Worker with R2 and D1; review before install.
 - Publish generated assets (objects, materials, drawings) to the shared library alongside nodes.
 - vic_site_map: optional draped copies of the site and lot curves; road markings; trees outside Tree Urban coverage
