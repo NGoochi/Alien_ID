@@ -7,8 +7,9 @@
 # NODE_INPUTS: ridge:str | "ridge direction for gable, dutch gable, skillion and flat: auto = along the long side; skillion and flat fall across it" default="auto" options="auto|x|y"
 # NODE_INPUTS: flip:bool | "skillion and flat: fall the other way" default=false
 # NODE_INPUTS: fascia:float | "fascia and barge board depth (m), with gutters on the eaves; 0 = none" min=0 max=0.6 default=0.2
+# NODE_INPUTS: infill:float | "gable ends, skillion sides and high walls: infill up to the roof's underside, this thick (m), centred on the wall line; 0 = leave open" min=0 max=1 default=0.2
 # NODE_INPUTS: roof_type:object | "roof_types record (default: metal deck)", site:object | "site record (optional): x/y and placement, north for face aspects, scale for plan text"
-# NODE_OUTPUTS: roofs:list[str] | "roof records", solids:list[Brep] | "one solid per layer per roof part, then fascias, barge boards, gutters and gablets", materials:list[str] | "material per solid", colours:list[Color] | "colour per solid"
+# NODE_OUTPUTS: roofs:list[str] | "roof records", solids:list[Brep] | "one solid per layer per roof part, then fascias, barge boards, gutters, gablets and wall infill", materials:list[str] | "material per solid", colours:list[Color] | "colour per solid"
 # NODE_OUTPUTS: ridges:list[Curve] | "ridge lines (and a skillion's high edge)", hips:list[Curve] | "hip lines", valleys:list[Curve] | "valley lines", eaves:list[Curve] | "roof edges: eaves, verges (gable rakes) and gablet bases"
 # NODE_OUTPUTS: plan:list[Curve] | "roof plan: eaves outline, ridges, hips, valleys, the wall line dashed, fall arrows with the pitch", area:list[float] | "area of each roof on the slope (m2)", info:str
 # CATEGORY: Building elements
@@ -20,8 +21,10 @@
 # between two outside corners (ridge auto: shorter than both neighbours, so a rectangle's ends and an L's wing ends), or
 # the ends across the ridge direction. Dutch gables hip each end, then stand a gablet from half way up. Skillion and flat
 # roofs keep curved outlines exact. Each layer is the roof surface dropped by the layers above, its thickness / cos
-# (pitch) deep with plumb edges; fascias cover the rafter ends, with gutters on the eaves. Each curve is its own roof:
-# courtyards (an outline with a hole) aren't roofed as one yet.
+# (pitch) deep with plumb edges; fascias cover the rafter ends, with gutters on the eaves. Where the underside rises
+# above the level at the wall line (gable ends, skillion sides, a skillion's high wall) `infill` closes the wall up to
+# it, so walls built to the level meet the roof. Each curve is its own roof: courtyards (an outline with a hole) aren't
+# roofed as one yet.
 import time
 
 import alien_bim as bim
@@ -83,7 +86,7 @@ for i, c in enumerate(curves):
         continue
     try:
         r = env.build_roof(flat, form_k, pitch, overhang, gable_overhang, ridge_k, bool(flip), max(0.0, fascia or 0.0), rt,
-                           float(L["elevation"]), frame, tol, scale)
+                           float(L["elevation"]), frame, tol, scale, infill=infill if infill is not None else 0.2)
     except Exception as ex:
         notes.append("outline %d: %s" % (i, ex))
         continue

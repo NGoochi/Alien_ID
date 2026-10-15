@@ -48,7 +48,8 @@ namespace Alien.Scripting
             if (token == null) return list;
             if (token is JArray arr && !IsVectorLiteral(arr, def.Type))
             {
-                foreach (var t in arr) list.Add(ResolveItem(t, def.Type));
+                if (IsCurveType(def.Type) && IsPointList(arr)) list.Add(ResolveItem(arr, def.Type)); // one curve's points
+                else foreach (var t in arr) list.Add(ResolveItem(t, def.Type));
             }
             else if (token.Type == JTokenType.String && def.Type is "float" or "int" or "bool" && token.ToString().Contains(','))
             {
@@ -97,11 +98,28 @@ namespace Alien.Scripting
                     case "Vector3d": { var v = Numbers(t, 3); return v == null ? null : new Vector3d(v[0], v[1], v[2]); }
                     case "Interval": { var v = Numbers(t, 2); return v == null ? null : new Interval(v[0], v[1]); }
                     case "Color": return ParseColor(t, s);
+                    case "Curve": return (object)CurveFrom(t) ?? ToPlain(t);
+                    case "Line": { var c = CurveFrom(t); return c is LineCurve lc ? lc.Line : (object)null; }
                     case "object": return ToPlain(t);
                     default: return ToPlain(t); // geometry cannot be typed in by hand
                 }
             }
             catch { return null; }
+        }
+
+        private static bool IsCurveType(string type) => type is "Curve" or "Line";
+
+        /// <summary>[[x,y,z], [x,y,z], ...]: two or more points (z optional), in model units.</summary>
+        private static bool IsPointList(JArray a) =>
+            a.Count >= 2 && a.All(p => p is JArray q && q.Count is 2 or 3 && q.All(n => n.Type is JTokenType.Integer or JTokenType.Float));
+
+        /// <summary>A curve typed as its points (agents and the project agent set curve inputs this way): two points
+        /// make a line, more a polyline (repeat the first point to close it).</summary>
+        private static Curve CurveFrom(JToken t)
+        {
+            if (t is not JArray a || !IsPointList(a)) return null;
+            var pts = a.Select(p => (JArray)p).Select(q => new Point3d((double)q[0], (double)q[1], q.Count > 2 ? (double)q[2] : 0)).ToList();
+            return pts.Count == 2 ? new LineCurve(pts[0], pts[1]) : new PolylineCurve(pts);
         }
 
         private static double[] Numbers(JToken t, int count)

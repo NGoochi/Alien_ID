@@ -8,7 +8,8 @@
 # NODE_INPUTS: custom:list[Curve] | "extra grids: angled or curved curves (optional)", custom_names:list[str] | "names of the custom grids (default G1, G2 ...)"
 # NODE_INPUTS: dimensions:bool | "bay and overall dimension strings (mm) on the start sides" default=true
 # NODE_OUTPUTS: grids:list[str] | "grid records: wire into the building nodes' grids input", lines:list[Curve] | "grid lines", heads:list[Curve] | "bubbles: circle and name"
-# NODE_OUTPUTS: names:list[str] | "one per grid line", points:list[Point3d] | "grid intersections", point_names:list[str] | "'A/1' ...", dims:list[Curve] | "dimension linework", info:str
+# NODE_OUTPUTS: names:list[str] | "one per grid line", points:list[Point3d] | "grid intersections", point_names:list[str] | "'A/1' ...", dims:list[Curve] | "dimension linework"
+# NODE_OUTPUTS: outline:Curve | "footprint: the rectangle on the outermost grids, for walls, slabs, roofs and levels' outline", edges:list[Curve] | "the footprint's sides as wall lines (exterior on their left, as walls reads them): front, left, back, right", info:str
 # CATEGORY: Building elements
 # Grids: architectural column grids like Revit or ArchiCAD: numbered and lettered grids from bay sizes, on the site's origin and rotation, with heads, intersections and dimensions.
 #
@@ -17,6 +18,8 @@
 # letters or a prefix + number ('X1'), read in the direction's style ('3' on a lettered set starts at C). Custom
 # curves add angled or curved grids (group "custom"); a curved one keeps its curve in the record ("curve"), and its
 # crossings are found on the curve itself. Bubble and text sizes are paper millimetres at the drawing scale.
+# outline and edges are the footprint on the outermost grids: wire them into walls (path), slabs, roofs and levels
+# (outline) so the building lines up with a frame on the same grids.
 import re
 
 import Rhino.Geometry as rg
@@ -248,6 +251,16 @@ if dimensions:
             for v in ps:
                 p = splane.Origin + axis * (v * u) + side * edge
                 dims.append(rg.LineCurve(p + side * (reach + paper), p + side * (base + (rows - 1) * row_gap + 2 * paper)))
+
+# ── footprint: the rectangle on the outermost grids, so walls, slabs and roofs line up with the frame ──
+
+outline, edges = None, []
+if len(xs) > 1 and len(ys) > 1:
+    corners = [world(xlo, ylo), world(xlo, yhi), world(xhi, yhi), world(xhi, ylo)]
+    outline = rg.PolylineCurve(corners + [corners[0]])
+    # clockwise seen from above, so the outside is on each line's left; the front (along X at the origin) comes first
+    edges = [rg.LineCurve(corners[3], corners[0]), rg.LineCurve(corners[0], corners[1]),
+             rg.LineCurve(corners[1], corners[2]), rg.LineCurve(corners[2], corners[3])]
 
 bx, by = (xhi - xlo), (yhi - ylo)
 info = "%d grids: %d along X (%s), %d along Y (%s)%s; %.2f x %.2f m; %d intersections; heads %.0f mm at 1:%d (%.2f m)" % (

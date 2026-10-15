@@ -12,8 +12,9 @@
 # Only Generate calls the model: changing the description waits for it, and a design drawn before comes back free from
 # the cache. Width and depth resize the drawn design without asking the model again (their sliders fit the design after
 # a build and reset when the design changes). The code runs with only `rg` (Rhino.Geometry) and `math`. Plan drawings
-# are centred on the plane's origin; elevations (anything drawn standing on y = 0) stand on it. Each design is saved
-# once to the Alien asset library as a drawing (in metres, as drawn), so the panel can bake it as a block.
+# are centred on the plane's origin; elevations (anything drawn standing on y = 0, or placed on an upright plane) stand
+# on it. Each design is saved once to the Alien asset library as a drawing (in metres, as drawn), so the panel can bake
+# it as a block.
 import math
 
 import Rhino
@@ -159,7 +160,8 @@ else:
     # Normalise: centred in X; centred in Y too, unless it stands on y = 0 (an elevation keeps its ground line).
     box = cg.bounds(els)
     w0, d0 = box.Max.X - box.Min.X, box.Max.Y - box.Min.Y
-    standing = abs(box.Min.Y) <= 0.02 * max(d0, 1e-6)
+    upright = plane is not None and abs(plane.ZAxis.Z) < 0.5  # an XZ-like plane: an elevation, whatever was drawn
+    standing = upright or abs(box.Min.Y) <= 0.02 * max(d0, 1e-6)
     local = cg.transform(els, rg.Transform.Translation(-(box.Min.X + box.Max.X) / 2.0,
                                                        -box.Min.Y if standing else -(box.Min.Y + box.Max.Y) / 2.0, 0))
     # Resize each axis on its own (0 keeps the drawn size), then scale to model units and place on the plane.

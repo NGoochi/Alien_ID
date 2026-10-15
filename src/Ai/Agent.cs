@@ -43,6 +43,8 @@ namespace Alien.Ai
         /// <summary>Earlier turns for the model: {user, reply, actions}.</summary>
         public List<JObject> Turns { get; set; } = new List<JObject>();
         public double Cost { get; set; }
+        /// <summary>The last building the agent placed or changed: role -> node id.</summary>
+        public JObject Building { get; set; }
 
         [JsonIgnore] public string File { get; set; }
 
@@ -265,6 +267,7 @@ namespace Alien.Ai
 
             var tools = ToolDefinitions();
             var actionsDone = new List<string>();
+            var limits = new TurnLimits();
             for (int step = 1; step <= MaxSteps; step++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -298,12 +301,17 @@ namespace Alien.Ai
                     catch { args = new JObject(); }
                     Status = $"{Verb(name)}…";
                     Changed?.Invoke();
-                    var (resultText, ok, image) = Run(s, name, args, request);
+                    var (resultText, ok, image) = Run(s, name, args, request, limits);
                     if (image != null) images.Add(image);
                     var entry = new AgentEntry { Role = "tool", Tool = name, Text = Summary(name, args, resultText, ok), Ok = ok };
                     if (image != null) entry.Image = "data:image/png;base64," + image;
                     Add(s, entry);
-                    if (ok && name is "add" or "wire" or "delete" or "set_values" or "script_edit" or "generate" or "remember")
+                    if (ok && name == "building")
+                    {
+                        actionsDone.Add(BuildingTool.Brief(resultText));  // which node is which, for later turns
+                        s.Building = BuildingTool.RoleIds(resultText) ?? s.Building;
+                    }
+                    else if (ok && name is "add" or "wire" or "delete" or "set_values" or "script_edit" or "generate" or "remember")
                         actionsDone.Add(entry.Text);
                     messages.Add(new JObject { ["role"] = "tool", ["tool_call_id"] = id, ["content"] = Clip(resultText, ResultChars) });
                 }
@@ -320,13 +328,35 @@ namespace Alien.Ai
             s.Turns.Add(new JObject { ["user"] = request, ["reply"] = "(stopped after many steps)", ["actions"] = string.Join("; ", actionsDone.Take(20)) });
         }
 
+        /// <summary>What one turn has made so far, for the limits below.</summary>
+        private sealed class TurnLimits
+        {
+            public int Generated;
+            public int Buildings;
+            public int Edits;
+        }
+
+        private const int MaxGeneratesPerTurn = 2;
+        private const int MaxCodeLines = 150;
+
         /// <summary>Run one tool: an MCP tool through the server's dispatcher, or one of the agent's own.</summary>
-        private static (string text, bool ok, string image) Run(AgentSession s, string name, JObject args, string request)
+        private static (string text, bool ok, string image) Run(AgentSession s, string name, JObject args, string request, TurnLimits limits)
         {
             try
             {
                 switch (name)
                 {
+                    case "building":
+                        bool edit = !string.IsNullOrWhiteSpace(args.Value<string>("edit"));
+                        if (!edit && limits.Buildings >= 1) return ("Not placed: one new building per request. Tell the user what you placed; they can ask for another.", false, null);
+                        if (edit && limits.Edits >= 3) return ("Not changed: three rebuilds this request already. Tell the user where it stands.", false, null);
+                        if (edit) limits.Edits++; else limits.Buildings++;
+                        // Some models send every field, false included: no stairs only when the user said so.
+                        if (args["stairs"]?.Type == JTokenType.Boolean && !(bool)args["stairs"] && !Regex.IsMatch(request ?? "", @"\bstair", RegexOptions.IgnoreCase))
+                            args.Remove("stairs");
+                        if (edit) args = EditFields(args, request);
+                        var (built, look) = BuildingTool.Run(args);
+                        return (built, true, look);
                     case "library": return (Library(args.Value<string>("query")), true, null);
                     case "remember":
                         var note = (args.Value<string>("note") ?? "").Trim();
@@ -337,6 +367,15 @@ namespace Alien.Ai
                     case "select": return (Select(args["ids"] as JArray), true, null);
                 }
                 if (!AllowedTools.Contains(name)) return ($"Unknown tool {name}.", false, null);
+                if (name == "generate")
+                {
+                    var refusal = GenerateGuard(args.Value<string>("prompt"), request, limits);
+                    if (refusal != null) return (refusal, false, null);
+                    limits.Generated++;
+                    AddBuildingContext(s, args);
+                }
+                if (name == "add" && TooMuchCode(args) is string big) return (big, false, null);
+                if (name == "add" && limits.Buildings == 0 && LooseBuilding(args) is string loose) return (loose, false, null);
                 if (name == "set_values" && args["values"] is JObject vals && !SpendAllowed(request)
                     && vals.Properties().Any(p => p.Value.Type == JTokenType.Boolean && (bool)p.Value && p.Name.StartsWith("generate", StringComparison.OrdinalIgnoreCase)))
                     return ("Not pressed: Generate buttons spend the user's credit. Ask the user first (they can say \"go ahead\").", false, null);
@@ -347,6 +386,130 @@ namespace Alien.Ai
                 return (text, ok, image);
             }
             catch (Exception ex) { return (ex.Message, false, null); }
+        }
+
+        // ── guardrails: one node does one job ─────────────────────
+
+        /// <summary>Building elements the suite already makes, by the words a prompt uses for them.</summary>
+        private static readonly (string kind, string pattern)[] SuiteElements =
+        {
+            ("walls", @"\bwalls?\b"), ("slabs or floors", @"\b(slabs?|floor ?plates?|floors)\b"), ("roofs", @"\broof(s|ing)?\b"),
+            ("stairs", @"\bstair(s|case|cases|way)?\b"), ("doors", @"\bdoors?\b"), ("windows", @"\bwindows?\b"),
+            ("a structural frame", @"\b(columns?|beams?|structural frame|framing|frame structure|portal frames?)\b"),
+            ("grids", @"\bgrids?\b"), ("levels", @"\b(levels|storeys?|stor(y|ies)|multi-?storey|\w+-storey)\b"),
+            ("balustrades", @"\b(balustrades?|railings?|handrails?)\b"), ("curtain walls", @"\bcurtain ?walls?\b"),
+        };
+
+        private const string WholeBuilding =
+            @"\b(house|home|dwelling|villa|cabin|cottage|bungalow|duplex|townhouses?|apartments?|flats|tower|skyscraper|" +
+            @"office building|(whole|entire|complete|full) building|building model|fit-?out|all (the )?fittings)\b";
+
+        /// <summary>
+        /// Why a generate call shouldn't run, or null. A generated node is one focused job; a prompt that models a whole
+        /// building or several elements the suite already has makes one slow, shoddy node nobody can edit (it happened:
+        /// "a two-storey house with all fittings" became a single node). Those go to the building tool and suite nodes.
+        /// </summary>
+        private static string GenerateGuard(string prompt, string request, TurnLimits limits)
+        {
+            prompt ??= "";
+            if (limits.Generated >= MaxGeneratesPerTurn)
+                return $"Not generated: {MaxGeneratesPerTurn} new nodes this request already. Stop here: tell the user what you made and what you'd add next; they can ask for more.";
+            // The user asked for exactly this in so many words.
+            if (Regex.IsMatch(request ?? "", @"\b(one|single|a single|in one|just one) node\b", RegexOptions.IgnoreCase)) return null;
+            var kinds = SuiteElements.Where(e => Regex.IsMatch(prompt, e.pattern, RegexOptions.IgnoreCase)).Select(e => e.kind).ToList();
+            // A building is what the node makes when it names one before the first "of / off / to / on ..." ("a two-storey
+            // house in Rhino ..."), not when it only says where something goes ("a pergola off the back of the house").
+            var subject = Regex.Split(prompt, @"\b(of|off|for|to|beside|behind|around|near|on|onto|against|from|along|at|over|under|in|inside|outside|next|attached|between)\b", RegexOptions.IgnoreCase)[0];
+            bool whole = Regex.IsMatch(subject, WholeBuilding, RegexOptions.IgnoreCase) && !Regex.IsMatch(subject, @"\bmass(ing)?\b", RegexOptions.IgnoreCase);
+            // A node that reads or reports on elements (a door schedule, area labels) is still one job.
+            bool reads = Regex.IsMatch(prompt, @"\b(schedules?|tables?|take-?offs?|quantit(y|ies)|counts?|labels?|tags?|reports?|summar(y|ies|ise|ize))\b", RegexOptions.IgnoreCase);
+            if ((kinds.Count >= 3 && !reads) || whole)
+                return "Not generated: one node does one job, and this prompt asks for a building" +
+                       (kinds.Count > 0 ? $" ({string.Join(", ", kinds)})" : "") + ". Alien's suite already has a node for each building element. " +
+                       "Call building(...) to place them wired on one footprint (house, apartments, office ...), then adjust them with set_values. " +
+                       "Generate only a piece the suite doesn't have (e.g. a pergola, joinery, a facade screen, a landscape element), " +
+                       "as one focused node wired to the suite's outputs with context:[ids]; if that is what this is, describe just that " +
+                       "piece without listing the building's elements. Furniture and fittings: object_3d nodes, one per item.";
+            if (prompt.Length > 1200)
+                return "Not generated: that prompt is too much for one node. Split it into focused nodes (each one job, wired together), " +
+                       "and check the library first: most building parts already exist.";
+            return null;
+        }
+
+        /// <summary>The words a request uses for each building setting: a change is kept only when the request talks
+        /// about it, since some models fill in every field of an edit with guesses (a 12 x 9 m house came back 10 x 8).</summary>
+        private static readonly (string pattern, string[] fields)[] EditTopics =
+        {
+            (@"\b(stor(e)?y|stories|storeys|floors?|levels?|tall|taller|shorter|high|higher|lower)\b", new[] { "storeys" }),
+            (@"\b(height|ceiling|tall|taller|floor.to.floor)\b", new[] { "floor_height" }),
+            (@"\b(wide|wider|width|long|longer|length|deep|deeper|depth|size|bigger|larger|smaller|footprint|bays?|grids?|metres|meters|m)\b|\d\s*(m\s*)?(x|by)\s*\d", new[] { "width", "depth", "x_bays", "y_bays" }),
+            (@"\b(roofs?|gable|hip|hipped|skillion|flat|dutch)\b", new[] { "roof" }),
+            (@"\b(pitch|pitched|degrees?|steep|steeper|shallow|shallower)\b|°", new[] { "pitch" }),
+            (@"\b(walls?|brick|stud|concrete|precast|block(work)?|clt|aac|render(ed)?|cladding|veneer)\b", new[] { "wall" }),
+            (@"\b(slabs?|floors?|concrete|timber|clt|joists?|post.tensioned)\b", new[] { "slab" }),
+            (@"\b(roofing|tiles?|tiled|metal|deck|membrane|slate|green roof|terracotta|colorbond)\b", new[] { "roof_type" }),
+            (@"\b(frame|framed|structure|structural|steel|timber|concrete|columns?|beams?)\b", new[] { "frame" }),
+            (@"\bstair", new[] { "stairs" }),
+            (@"\bdoors?\b", new[] { "doors" }),
+            (@"\b(windows?|glazing|glazed|casement|awning|sliding|hopper|fixed|double.hung)\b", new[] { "windows", "window_family", "window_width", "window_height" }),
+            (@"\b(name|call(ed)?|rename)\b", new[] { "name" }),
+        };
+
+        private static JObject EditFields(JObject args, string request)
+        {
+            var keep = new HashSet<string> { "edit" };
+            foreach (var (pattern, fields) in EditTopics)
+                if (Regex.IsMatch(request ?? "", pattern, RegexOptions.IgnoreCase)) keep.UnionWith(fields);
+            return new JObject(args.Properties().Where(p => keep.Contains(p.Name)));
+        }
+
+        /// <summary>
+        /// A new node that refers to the building ("a pergola off the back of the house") without context gets the
+        /// building's site, levels and grids: describe-a-node then reads the real footprint and wires to it, instead of
+        /// guessing where the walls are (a pergola once landed a metre inside the house).
+        /// </summary>
+        private static void AddBuildingContext(AgentSession s, JObject args)
+        {
+            if (s.Building == null || (args["context"] is JArray given && given.Count > 0) || args["id"] != null) return;
+            if (!Regex.IsMatch(args.Value<string>("prompt") ?? "", @"\b(house|home|building|walls?|roof|back|front|rear|sides?|beside|next to|attached|footprint|grids?|levels?|storeys?)\b", RegexOptions.IgnoreCase))
+                return;
+            var ids = UiThread.Run(() =>
+            {
+                var doc = Instances.ActiveCanvas?.Document;
+                if (doc == null) return new List<string>();
+                return new[] { "site", "levels", "grids" }.Select(r => s.Building.Value<string>(r)).Where(id => id != null)
+                    .Where(id => { try { Tools.Resolve(doc, id); return true; } catch { return false; } }).ToList();
+            });
+            if (ids.Count > 0) args["context"] = new JArray(ids);
+        }
+
+        /// <summary>A hand-written node (add with code) over the size limit: the same shoddy-node risk as a huge generate.</summary>
+        private static string TooMuchCode(JObject args)
+        {
+            IEnumerable<JToken> specs = args["nodes"] is JArray batch ? batch : new JArray(args);
+            foreach (var n in specs.OfType<JObject>())
+            {
+                var code = n.Value<string>("code");
+                if (code != null && code.Split('\n').Length > MaxCodeLines)
+                    return $"Not added: {code.Split('\n').Length} lines is too big for a hand-written node (limit {MaxCodeLines}). " +
+                           "Use suite nodes (library, building) and keep new nodes to one focused job each.";
+            }
+            return null;
+        }
+
+        private static readonly string[] BuildingScripts =
+            { "bim_site", "levels", "grids", "walls", "doors", "windows", "slabs", "roofs", "stairs", "balustrades", "beams_columns", "curtain_wall" };
+
+        /// <summary>A whole building's worth of suite nodes placed by hand: left on their samples they never line up
+        /// (each draws its own sample room), which is what the building tool is for.</summary>
+        private static string LooseBuilding(JObject args)
+        {
+            if (args["nodes"] is not JArray batch) return null;
+            int n = batch.OfType<JObject>().Select(o => Path.GetFileNameWithoutExtension(o.Value<string>("script") ?? ""))
+                         .Count(sc => BuildingScripts.Contains(sc, StringComparer.OrdinalIgnoreCase));
+            return n >= 5
+                ? $"Not placed: {n} building nodes by hand won't line up. Call building(...) instead: it places and wires them on one footprint. Add extra nodes beside it afterwards."
+                : null;
         }
 
         /// <summary>The user's own words allow pressing a paid Generate button ("generate it", "go ahead", "yes").</summary>
@@ -367,8 +530,10 @@ namespace Alien.Ai
                 if (n.Value<string>("group") == "suite") score += 1;
                 return (n, score);
             }).Where(x => x.score > 0).OrderByDescending(x => x.score).Take(words.Count == 0 ? 40 : 12).ToList();
-            if (scored.Count == 0) return "No library node matches. Consider generate(...) to make one.";
-            return string.Join("\n", scored.Select(x => $"{x.n.Value<string>("path")} [{x.n.Value<string>("category")}] {x.n.Value<string>("description")}"));
+            var tip = SuiteElements.Count(e => Regex.IsMatch(query ?? "", e.pattern, RegexOptions.IgnoreCase)) >= 2 || Regex.IsMatch(query ?? "", WholeBuilding, RegexOptions.IgnoreCase)
+                ? "Tip: for a building, building(...) places and wires these suite nodes on one footprint.\n" : "";
+            if (scored.Count == 0) return tip + "No library node matches. Consider generate(...) to make one.";
+            return tip + string.Join("\n", scored.Select(x => $"{x.n.Value<string>("path")} [{x.n.Value<string>("category")}] {x.n.Value<string>("description")}"));
         }
 
         private static string Select(JArray ids)
@@ -409,6 +574,7 @@ namespace Alien.Ai
                 if (t == null) continue;
                 defs.Add(Function(t.Name, t.Description, t.Schema));
             }
+            defs.Add(Function("building", BuildingTool.Description, BuildingTool.Schema()));
             defs.Add(Function("library", "Search Alien's node library (suite nodes and the user's own scripts) by words; empty query lists them all. Returns path [category] description; place one with add(component:'alien', script:path).",
                 Schema(("query", "Words, e.g. 'walls doors' or 'site map'", false))));
             defs.Add(Function("remember", "Keep a lasting note about this project (site, brief, decisions, what a group of nodes is for). Notes are shown to you at the start of every request.",
@@ -443,15 +609,31 @@ You can see the whole Grasshopper canvas (summarised in each request), read and 
 library, wire them, test them, delete them, and look at the Rhino viewport.
 
 How to work
-- Start from what exists: read the canvas summary; search the library (library tool) before making anything new, and suggest or
-  place existing nodes when they fit. When the user isn't sure what to build, look at the canvas and the project memory and
-  suggest two or three concrete next steps with the nodes that do them.
-- Place a library node with add(component:""alien"", script:""suite/walls.py""); place several and wire them in one add call
-  (nodes:[{key, component:""alien"", script, x, y}], links:[""key.out>key.in""]). Suite nodes chain by matching pin names
-  (site>site, levels>levels, grids>grids, wall_type>wall_type, walls>walls, members>members). Leave room: place new nodes to
-  the right of what they use (add's near:<id>, or x/y about 450 apart).
-- When nothing in the library fits, use generate(prompt, context:[ids of the nodes it should use]): describe-a-node writes,
-  runs and fixes a new node and wires it. Write code yourself (add with code, script_edit) only for small fixes.
+- Build with what exists. Alien's suite has a node for each building element and many other jobs; the user wants those
+  nodes placed and wired together, never one big node that models everything (that makes one slow, shoddy node nobody
+  can edit). Search the library (library tool) before making anything new, and suggest or place existing nodes.
+- Buildings: for any building request (a house, apartments, an office, ""walls, slabs and a roof"", a frame with levels
+  and grids ...), call building(...) FIRST. It places the suite nodes (site, levels, grids, types, walls on every storey,
+  doors, windows, slabs, roof, frame, stairs, balustrades) wired and lined up on one footprint. Then adjust them with
+  set_values (sizes on grids and levels, types, door and window positions, roof form) and look at the result. Don't
+  wire new elements into an old, unrelated setup on the canvas; pass site/levels/grids ids to building only when the
+  user points you at them.
+- Changing a building you placed (storeys, size or bays, roof form or pitch, wall/slab/roof type, frame, windows,
+  doors): call building(edit:<its group id>, ...only what changes). It rebuilds that building in place and keeps the
+  parts in step (more storeys get windows and stairs too). Use set_values on its nodes only for other inputs.
+- Not covered by building: interior walls (another walls node; set its path with points, below), furniture and
+  fittings (object_3d, one node per item, e.g. ""kitchen bench""; its generate button spends credit, so place it with
+  `thing` set and ask before pressing), site context (vic_site_map). Say plainly what is not modelled yet.
+- Place one library node with add(component:""alien"", script:""suite/walls.py""); several in one add call
+  (nodes:[{key, component:""alien"", script, x, y, values}], links:[""key.out>key.in""]). Suite nodes chain by matching pin
+  names (site>site, levels>levels, grids>grids, wall_type>wall_type, walls>walls, members>members). Leave room: place new
+  nodes to the right of what they use (add's near:<id>, or x/y about 450 apart).
+- Curve inputs can be set as points with set_values, in model units: [[x,y,z],[x,y,z]] is a line, more points a
+  polyline (repeat the first to close it); several curves: [[[...],[...]], [[...],[...]]].
+- generate(prompt, context:[ids]) is only for a piece the suite doesn't have, one focused job per node (a pergola, a
+  facade screen, a schedule from wall records), wired to the nodes it uses. It refuses whole buildings and prompts that
+  list several building elements: use building and suite nodes for those. At most two new nodes per request; write
+  code yourself (add with code, script_edit) only for small fixes.
 - Check your work: tool replies include run status and errors; inspect for detail; capture(view:""iso"" or ""top"",
   focus:[ids], width:640, height:400) when you need to see geometry. Fix what breaks before you report.
 - Never press Generate or other buttons that spend the user's credit, and never delete nodes the user made, unless the user
@@ -509,6 +691,7 @@ How to work
             "script_edit" => "editing a script", "generate" => "writing a node", "capture" => "looking at the viewport",
             "view" => "changing the view", "library" => "searching the library", "remember" => "remembering",
             "select" => "selecting", "search" => "searching components", "objects" => "reading Rhino objects",
+            "building" => "placing a building",
             "layers" => "reading layers", "docs" => "reading the docs", _ => tool,
         };
 
@@ -527,6 +710,17 @@ How to work
                 case "delete": return $"deleted {(args["ids"] as JArray)?.Count ?? 0} node(s)";
                 case "set_values": return "set " + string.Join(", ", (args["values"] as JObject)?.Properties().Select(p => p.Name) ?? Array.Empty<string>());
                 case "generate": return "wrote a node: " + Clip(args.Value<string>("prompt"), 80);
+                case "building":
+                    try
+                    {
+                        var b = JObject.Parse(result);
+                        var placed = (b["placed"] as JArray)?.Count ?? 0;
+                        var bad = (b["placed"] as JArray)?.Count(n => n.Value<string>("status") != "ok") ?? 0;
+                        var what = b["edited"] != null ? "changed the building: " + Clip(b.Value<string>("edited").Replace("rebuilt in place with ", "").Split(';')[0], 90)
+                                                       : $"placed a building: {placed} nodes · {b.Value<int>("wires")} wires";
+                        return what + (bad > 0 ? $" · {bad} need a look" : "");
+                    }
+                    catch { return "placed a building"; }
                 case "capture": return "looked at the viewport";
                 case "script_edit": return "edited a script";
                 case "library": return "searched the library" + (string.IsNullOrEmpty(args.Value<string>("query")) ? "" : $": {args.Value<string>("query")}");

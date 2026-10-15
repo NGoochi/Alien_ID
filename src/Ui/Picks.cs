@@ -46,7 +46,10 @@ namespace Alien.Ui
             if (ids == null)
             {
                 var p = Values.Resolve(raw, d);
-                return p is Point3d pt ? $"{pt.X:0.##}, {pt.Y:0.##}, {pt.Z:0.##}" : null;
+                if (p is Point3d pt) return $"{pt.X:0.##}, {pt.Y:0.##}, {pt.Z:0.##}";
+                // a curve typed as points (set by an agent)
+                int curves = p is Curve ? 1 : p is System.Collections.IList l ? l.OfType<Curve>().Count() : 0;
+                return curves > 0 ? $"{curves} {Noun(d, curves)}" : null;
             }
             var doc = RhinoDoc.ActiveDoc;
             int found = ids.Count(t => Guid.TryParse(t?.ToString(), out var id) && doc?.Objects.FindId(id) is RhinoObject o && !o.IsDeleted);

@@ -121,10 +121,12 @@ def make_seamless(w, h, bpp, px, band=0.16):
     return out
 
 
-def add_material(doc, mat_name, texture_path, size_m):
+def render_material(doc, mat_name, texture_path, size_m, world=True):
     """
-    Create or update a PBR render material with the texture as base colour and bump, mapped in world coordinates
-    (WCS box) at real-world size: one tile per size_m, on any object, with no UV mapping needed.
+    A PBR render material with the texture as base colour and bump. world: mapped in world coordinates (WCS box) at
+    real-world size, one tile per size_m on any object with no UV mapping needed (for the document); else by the
+    object's own texture coordinates, one tile per unit (Grasshopper previews apply a WCS repeat thousands of times
+    over, so they need geometry mapped in tiles, e.g. by texture_mapping). Not added to the document.
     """
     tex = Rhino.DocObjects.Texture()
     tex.FileReference = Rhino.FileIO.FileReference.CreateFromFullPath(texture_path)
@@ -135,19 +137,29 @@ def add_material(doc, mat_name, texture_path, size_m):
     mat.PhysicallyBased.SetTexture(tex, Rhino.DocObjects.TextureType.Bump)
     rm = Rhino.Render.RenderMaterial.FromMaterial(mat, doc)
     rm.Name = mat_name
-    for old in [m for m in doc.RenderMaterials if m.Name == mat_name]:
-        doc.RenderMaterials.Remove(old)
-    doc.RenderMaterials.Add(rm)
     tile = size_m * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, doc.ModelUnitSystem)   # model units
     child = rm.FirstChild
     while child is not None:
         if isinstance(child, Rhino.Render.RenderTexture):
             ctx = Rhino.Render.RenderContent.ChangeContexts.Program
             child.BeginChange(ctx)
-            child.SetProjectionMode(Rhino.Render.TextureProjectionMode.WcsBox, ctx)
-            child.SetRepeat(rg.Vector3d(1.0 / tile, 1.0 / tile, 1.0 / tile), ctx)
+            if world:
+                child.SetProjectionMode(Rhino.Render.TextureProjectionMode.WcsBox, ctx)
+                child.SetRepeat(rg.Vector3d(1.0 / tile, 1.0 / tile, 1.0 / tile), ctx)
+            else:
+                child.SetProjectionMode(Rhino.Render.TextureProjectionMode.MappingChannel, ctx)
+                child.SetRepeat(rg.Vector3d(1.0, 1.0, 1.0), ctx)
             child.EndChange()
         child = child.NextSibling
+    return rm
+
+
+def add_material(doc, mat_name, texture_path, size_m):
+    """Create or update the render material in the document (replacing one of the same name)."""
+    rm = render_material(doc, mat_name, texture_path, size_m)
+    for old in [m for m in doc.RenderMaterials if m.Name == mat_name]:
+        doc.RenderMaterials.Remove(old)
+    doc.RenderMaterials.Add(rm)
     return rm
 
 
@@ -214,11 +226,15 @@ else:
 doc = Rhino.RhinoDoc.ActiveDoc
 units = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Meters, doc.ModelUnitSystem) if doc else 1.0
 if index is not None:
-    base = Rhino.DocObjects.Material()
-    base.DiffuseColor = System.Drawing.Color.White
-    base.SetBitmapTexture(texture)
-    display = Rhino.Display.DisplayMaterial(base)
-    material = Grasshopper.Kernel.Types.GH_Material(display)  # Custom Preview's material input only takes GH's own type
+    # Custom Preview's material is GH's own type. Made from a DisplayMaterial it keeps only the colour (the bitmap is
+    # dropped); made from a render material it carries the material's XML, texture included, through wires and saved
+    # files. One tile per unit of the geometry's texture coordinates: the preview tiles below are one tile each.
+    if doc:
+        material = Grasshopper.Kernel.Types.GH_Material(render_material(doc, name, texture, size, world=False))
+    else:
+        base = Rhino.DocObjects.Material()
+        base.SetBitmapTexture(texture)
+        material = Grasshopper.Kernel.Types.GH_Material(Rhino.Display.DisplayMaterial(base))
 
     tile = size * units
     for i in range(3):

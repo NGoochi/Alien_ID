@@ -46,7 +46,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
         public static IEnumerable<Tool> All() => new[]
         {
             new Tool("canvas",
-                "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user) and wires 'src.out>dst.in'.",
+                "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user), wires 'src.out>dst.in' and named groups.",
                 Schema(("filter", Str("'alien', 'errors', or a name substring. Default: everything."), false),
                        ("detail", Bool("Include pins of native components too."), false),
                        ("solve", Bool("Recompute the whole definition first and report errors/warnings."), false)),
@@ -128,7 +128,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                 Schema(("target", Str("'viewport' (default) or 'canvas'"), false),
                        ("width", Num("px, default 800"), false), ("height", Num("px, default 500"), false),
                        ("view", Str("'perspective', 'iso', 'top', 'front', 'right', 'left', 'back' or 'bottom'"), false),
-                       ("focus", Arr(Str("node id, Rhino object id or 'layer:Path'"), "Frame these"), false),
+                       ("focus", Arr(Str("node or group id, Rhino object id or 'layer:Path'"), "Frame these"), false),
                        ("camera", Arr(Num("coordinate"), "Camera position [x,y,z]"), false),
                        ("look_at", Arr(Num("coordinate"), "Camera target [x,y,z]"), false),
                        ("zoom", Any("true/'extents', 'selected', or a box [[x,y,z],[x,y,z]] (extents is the default when `view` is given without camera/focus)"), false),
@@ -147,7 +147,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                        ("projection", Str("'parallel' or 'perspective'"), false),
                        ("display", Str("Display mode name"), false),
                        ("zoom", Any("true/'extents', 'selected', or a box [[x,y,z],[x,y,z]]"), false),
-                       ("focus", Arr(Str("node id, Rhino object id or 'layer:Path'"), "Frame these"), false)),
+                       ("focus", Arr(Str("node or group id, Rhino object id or 'layer:Path'"), "Frame these"), false)),
                 View),
 
             new Tool("objects",
@@ -272,13 +272,18 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                             wires.Add($"{Endpoint(srcObj, src)}>{Endpoint(o, input)}");
                         }
 
-                var result = new JObject
+                var result = new JObject { ["doc"] = doc.DisplayName, ["repo"] = ScriptRepository.Root };
+                // Named groups (e.g. one per building the project agent placed), so a chain can be told from another;
+                // before the nodes, so a long canvas clipped by a caller keeps them.
+                var groups = new JArray();
+                foreach (var g in doc.Objects.OfType<Grasshopper.Kernel.Special.GH_Group>())
                 {
-                    ["doc"] = doc.DisplayName,
-                    ["repo"] = ScriptRepository.Root,
-                    ["nodes"] = nodes,
-                    ["wires"] = wires
-                };
+                    var members = g.ObjectIDs.Where(ids.Contains).Select(id => doc.FindObject(id, true)).Where(m => m != null).Select(Describe.ShortId).ToList();
+                    if (members.Count > 0) groups.Add(new JObject { ["id"] = Describe.ShortId(g), ["name"] = g.NickName, ["nodes"] = new JArray(members) });
+                }
+                if (groups.Count > 0) result["groups"] = groups;
+                result["nodes"] = nodes;
+                result["wires"] = wires;
                 if (solved != null) result["solved"] = solved;
                 if (objs.Count > picked.Count) result["shown"] = $"{picked.Count}/{objs.Count}";
                 return result;
@@ -1086,7 +1091,7 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
         }
 
         /// <summary>
-        /// Box around: GH node ids (geometry flowing through them), Rhino object ids (8+ hex or full), or 'layer:Path'.
+        /// Box around: GH node or group ids (geometry flowing through them), Rhino object ids (8+ hex or full), or 'layer:Path'.
         /// </summary>
         private static BoundingBox FocusBox(List<string> ids)
         {
@@ -1109,7 +1114,17 @@ Ids are the 8-char ids from canvas/objects (a unique nickname also works for nod
                 {
                     IGH_DocumentObject node = null;
                     if (gh != null) { try { node = Resolve(gh, id); } catch (ToolException) { } }
-                    if (node != null)
+                    if (node is Grasshopper.Kernel.Special.GH_Group group)
+                    {
+                        // a group frames what its members carry (the building tool returns its group's id)
+                        b = BoundingBox.Empty;
+                        foreach (var member in group.ObjectIDs.Select(g => gh.FindObject(g, true)).Where(m => m != null))
+                        {
+                            var mb = Describe.DataBounds(member);
+                            if (mb.IsValid) b.Union(mb);
+                        }
+                    }
+                    else if (node != null)
                     {
                         b = Describe.DataBounds(node);
                         if (!b.IsValid && node is IGH_PreviewObject po) b = po.ClippingBox;

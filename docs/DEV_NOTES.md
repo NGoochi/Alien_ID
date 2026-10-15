@@ -190,6 +190,35 @@ owner-only (it holds an API key). `ScriptRepository.SettingToken` / `SetSettingT
   ("generate", "go ahead", "yes"…). Sessions are saved in `<repo>/.alien/agent/<sha1(key)>.json` (key = the .gh path,
   or the document id until it is saved; an unsaved file's chat moves to its path on the first request after saving).
   `ModelClient.CompleteWithTools` sends OpenAI-style tools through OpenRouter.
+- The agent's `building` tool (`Ai/AgentBuilding.cs`) is deterministic C#: one `add` batch (nodes with values + links)
+  through `McpServer.Invoke`, then it lays the nodes out in columns by their real sizes, groups them (unique name:
+  "House 2"), turns off the element nodes' red previews (walls, doors and windows all output the walls; only the last
+  has every opening cut) in favour of one Custom Preview fed geometry/colour pairs in wire order, sets the slabs'
+  offset to half the wall type's `total`, and returns a report plus a capture focused on that preview (the image goes
+  to the model like a capture's). Footprint: grids `outline`/`edges` (clockwise from the front, exterior on the left,
+  as walls reads them). Walls: base `all`, so ids run four a storey (front, left, back, right); windows are two nodes
+  (front/back walls by index, then sides) at grid-bay middles, a door in the bay nearest the centre (windows skip
+  overlaps with it). Stairs: straight along the back wall when it fits in 18 risers, else U; one stairs node per
+  storey pair, stacked (identical straight flights work: the void is only where headroom is short). Type swatches get
+  the site's plane, so a group's data stays at the building (capture's group focus). Origin: given, or 10 m past the
+  existing previews' bounding box. `edit` reads the group's nodes' manual values back into the tool's arguments,
+  lays the change over them, deletes the group and places it again at the same canvas spot and origin, each role
+  keeping its other values (a new type drops the old layers; a new size, frame or storey count lets sections and
+  door/window positions be recomputed). Blank and zero arguments are dropped first (gpt-6-luna sends every field:
+  width 0 made a 3 x 3 m house), and `stairs: false` only counts when the request mentions stairs.
+- Agent guardrails (`Agent.cs`): `GenerateGuard` refuses a generate prompt naming a whole building (house, apartments,
+  tower …, unless it is massing) or three or more building elements (walls, slabs, roof, stairs, doors, windows,
+  frame, grids, levels, balustrades, curtain walls; reading nodes like schedules and labels pass), prompts over 1,200
+  characters, and a third generate in one request; the user's own "one node" overrides. `TooMuchCode` refuses
+  hand-written nodes over 150 lines; `LooseBuilding` refuses a batch `add` of five or more building suite nodes before
+  any building was placed. One new building and three rebuilds a request. The chat history keeps the building's
+  role -> id list (`BuildingTool.Brief`), and `canvas` lists named groups before the nodes (the agent's context clips
+  long canvases), so "make that roof a gable" finds the right building. Edits keep only the fields the request talks
+  about (`EditFields`: luna filled in a guessed 10 x 8 m footprint while asked for a hip roof). A generate prompt that
+  refers to the building ("off the back of the house") with no context gets the last building's site, levels and
+  grids (`AddBuildingContext`; the session keeps that building's role -> id map).
+- Manual values for Curve / Line inputs can be point lists (`Values.CurveFrom`): two points a line, more a polyline,
+  model units; a list input takes one curve's points or a list of them. The pick control labels them ("1 curve").
 - MCP `add`, `wire`, `delete` and `set_values` record Grasshopper undo events (RecordAddObjectEvent, RecordWireEvent,
   RecordRemoveObjectEvent, RecordGenericObjectEvent), so what the agent (or any MCP client) changes can be undone.
 - Picking geometry (`Ui/Picks.cs`): `ControlKind.Pick` for unwired geometry inputs. A click runs Rhino's `GetObject`
@@ -298,6 +327,24 @@ seams anti-aliasing leaves.
 - **A non-uniform scale opens closed PolyCurves that contain arcs** (and their planar fills are lost): convert to NURBS
   first (alien_codegen.transform).
 - **Font.FromQuartetProperties** gives bold faces for TextEntity text curves (symbol labels).
+
+### Grasshopper facts from the demo definitions (2026-10-15)
+
+- **Textured previews:** `GH_Material(DisplayMaterial)` keeps only the colour (a `DisplayMaterial` made from a
+  `Material` does have the bitmap, but the GH wrapper and its duplicates drop it). `GH_Material(RenderMaterial)` is an
+  `XmlMaterial` holding the material's RDK XML, texture included, so it survives wires and saved files, and Custom
+  Preview shows it (also in captures of a backgrounded Rhino). A WCS-box projection repeat (1/tile in model units)
+  that is right on document objects tiles thousands of times over in a GH preview: preview materials use
+  MappingChannel with repeat 1 and geometry carries texture coordinates in tiles (`demos/texture_mapping.py`: unweld,
+  box-project each face from its normal, position / tile size).
+- **Rhino 8's Custom Curve Preview** (Curve, Linetype, Colour; no thickness input) drew nothing in viewport captures;
+  the demos draw curves with Custom Preview and a Colour Swatch.
+- **vic_site_map's lot and site curves lie at z 0** under a terrain that follows the ground, so they vanish under the
+  ground mesh: drape them (`demos/drape_curves.py`, MeshRay down every metre and at each corner).
+- **Building definitions from a script:** MCP `add` batches (natives by name or search id, e.g. Line is `4c4e56eb`);
+  Colour Swatches are set through `GH_ColourSwatch.SwatchColour` (run_code); scribbles are `GH_Scribble` with a Font;
+  `GH_DocumentIO(doc).SaveQuiet(path)` saves. Grasshopper has no unit-aware points, so demo layouts come from a node
+  that works in metres (`demos/spots.py`).
 
 ## Victorian open data (vic_site_map, alien_vicdata)
 

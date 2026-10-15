@@ -1,7 +1,7 @@
 {
   "name": "Alien",
   "version": "0.02-alpha",
-  "generated": "2026-10-14",
+  "generated": "2026-10-15",
   "generator": "tools/docs_json.py (pins from the suite headers, categories from src/Library.cs, MCP tools from the server)",
   "summary": "Alien is a Grasshopper (Rhino 8) plugin: a node whose logic lives in a plain Python 3 or C# script file, with pins and on-node controls from a header comment. Describe a node in plain English and a model writes the script, runs it and fixes its own errors. Nodes are shareable files; AI agents drive everything through a built-in MCP server. It ships with a suite of architectural nodes and keeps what they generate in a library.",
   "status": "Working prototype for a uni mini-MBA pitch (mock business, no real sales). Phase 1 of BRIEF.md is done, plus the panel (Help, themes, describe from a selection), library categories, the generated-asset library and the suite below, including the building suite. The online library, accounts and payments (Phases 2-3, ROADMAP.md) are not built.",
@@ -2469,6 +2469,18 @@
             "description": "dimension linework"
           },
           {
+            "name": "outline",
+            "type": "Curve",
+            "access": "item",
+            "description": "footprint: the rectangle on the outermost grids, for walls, slabs, roofs and levels' outline"
+          },
+          {
+            "name": "edges",
+            "type": "Curve",
+            "access": "list",
+            "description": "the footprint's sides as wall lines (exterior on their left, as walls reads them): front, left, back, right"
+          },
+          {
             "name": "info",
             "type": "str",
             "access": "item"
@@ -3537,6 +3549,15 @@
             "default": 0.2
           },
           {
+            "name": "infill",
+            "type": "float",
+            "access": "item",
+            "description": "gable ends, skillion sides and high walls: infill up to the roof's underside, this thick (m), centred on the wall line; 0 = leave open",
+            "min": 0,
+            "max": 1,
+            "default": 0.2
+          },
+          {
             "name": "roof_type",
             "type": "object",
             "access": "item",
@@ -3560,7 +3581,7 @@
             "name": "solids",
             "type": "Brep",
             "access": "list",
-            "description": "one solid per layer per roof part, then fascias, barge boards, gutters and gablets"
+            "description": "one solid per layer per roof part, then fascias, barge boards, gutters, gablets and wall infill"
           },
           {
             "name": "materials",
@@ -5605,7 +5626,7 @@
             "name": "base",
             "type": "str",
             "access": "item",
-            "description": "base level: name, code or index (blank: the first)",
+            "description": "base level: name, code or index (blank: the first); 'all' = every storey, or several with commas",
             "default": ""
           },
           {
@@ -5980,11 +6001,11 @@
       "Every tool that changes something returns the new state: don't poll."
     ],
     "server_instructions": "Alien: Grasshopper nodes backed by script files (Python 3 or C#) in the user's script repository.\nPins come from header comments ('//' instead of '#' in C#):\n  # NODE_INPUTS: pts:list[Point3d], n:int | \"count\" min=1 max=50 default=5\n  # NODE_OUTPUTS: curves, log\nUnwired input -> manual value (set_values) -> header default -> None/[] (C#: default(T)). Outputs are top-level variables with those names; nested lists become data trees.\nLoop: canvas -> add (python|csharp|any GH component; nodes+links for a whole chain) -> wire -> script_edit (returns ok/error+line/output summary) -> inspect / capture.\nPick Python for quick iteration and libraries; C# for heavy loops (simulations, 100k+ items) or strict typing.\nRhino side: doc (context, save, import), objects (list/select/zoom), layers (tree, visibility, materials), view (camera, display), rhino (commands, find, help). search finds GH components.\nIds are the 8-char ids from canvas/objects (a unique nickname also works for nodes). docs(topic) has syntax, types, gotchas.",
-    "read_from": "live server, 2026-10-14",
+    "read_from": "live server, 2026-10-15",
     "tools": [
       {
         "name": "canvas",
-        "description": "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user) and wires 'src.out>dst.in'.",
+        "description": "Compact graph of the active Grasshopper document: nodes (id, type, name, state, pins; sel = selected by the user), wires 'src.out>dst.in' and named groups.",
         "parameters": [
           {
             "name": "filter",
