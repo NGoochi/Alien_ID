@@ -22,8 +22,9 @@ touching C#, [docs/DEV_NOTES.md](docs/DEV_NOTES.md) (hard-won facts).
   macOS .pkg) and an in-panel Help screen that links an OpenRouter key. Since 0.02 (unreleased): the project agent
   (panel chat with tools and project memory), picking geometry in Rhino, suite nodes on the toolbar, "Start here", the
   object library with building types, and 15 more suite nodes (slabs, roofs, stairs, balustrades and their types,
-  section_profile, object_2d, symbol, display_mode, views, layout, exploded_axo). Phases 2–3 (Cloudflare library,
-  accounts, Stripe test mode) are not started.
+  section_profile, object_2d, symbol, display_mode, views, layout, exploded_axo). On 15 Oct 2026: the agent's building
+  tool and guardrails (buildings as wired suite groups, never one generated node), grids' footprint outputs, walls on
+  every storey, roof infill at gables. Phases 2–3 (Cloudflare library, accounts, Stripe test mode) are not started.
 
 ## Architecture
 
@@ -44,7 +45,8 @@ src/
   Ai/                   ModelClient (OpenRouter / Ollama, one OpenAI-style client), Generator (the retry loop),
                         Prompts (system prompt = rules + AGENT_GUIDE sections), Transcript (per-node request history),
                         OpenRouterAccount (the Help screen's key check and credit balance), Agent (the project agent:
-                        sessions, the tool loop over MCP tools, project memory)
+                        sessions, the tool loop over MCP tools, project memory, guardrails), AgentBuilding (the agent's
+                        building tool: the building suite placed, wired and edited as one group)
   Ui/                   AlienPanel (Eto WebView showing pane.html), AlienSidecar (panel window glued to the GH editor),
                         NodeControls (control kind, recommended ranges), InlineEditor (text box on the canvas), Theme
                         (presets + colours mixed from background/text/accent), Logo (the Alien mark as a GDI path),
@@ -60,6 +62,9 @@ docs/AGENT_GUIDE.md     agent reference: served by the MCP `docs` tool AND embed
 tests/describe/         the describe-a-node test harness (suite.py) + results
 tests/bim/chain.py      places, wires and checks the whole building suite on the open canvas (22 nodes)
 tests/agent/run.py      drives the panel's project agent from a shell (real model calls)
+tests/agent/building.py runs the agent's building tool without a model and checks the parts line up (free)
+tests/demos/build.py    builds the demo definitions into <script folder>/demos (and --check reopens and checks them);
+                        demos/ in this repo holds copies, their helper nodes and previews
 tools/                  drive a running Rhino from a shell (see tools/README.md)
 installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ (productbuild .pkg), art/ (icon and
                         wizard images drawn from the mark), INSTALL.md, and the by-hand scripts for the zip
@@ -90,6 +95,15 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
 - **The project agent reuses the MCP tools** (through `McpServer.Invoke`) instead of a second tool set, so the panel's
   agent and outside agents see and change the same things; MCP edits record Grasshopper undo, so its work can be
   undone. It leaves out run_code, rhino, doc and bake, and won't press Generate buttons unless the request says so.
+- **Buildings are suite chains, never one node.** A test user's "two-storey house with all fittings" became one
+  generated node modelling everything badly, and a second try placed suite nodes that each drew their own sample room.
+  So the agent has a deterministic `building` tool (no model calls): it places the building suite as one named group
+  on one footprint (the grids' `outline`/`edges` feed walls, slabs, roofs and levels; doors and windows sit in the grid
+  bays, clear of the columns) and `building(edit: group)` rebuilds that group in place, carrying each node's other
+  values over. Guardrails in code, not just the prompt, because cheap agent models ignore prompts: `generate` refuses
+  whole buildings and prompts naming three or more building elements (schedules and labels excepted), two new nodes a
+  request, hand-written nodes under 150 lines, and a batch `add` of five or more building nodes goes to `building`.
+  Tested with `openai/gpt-6-luna` (the user's agent model) and Claude Sonnet 5.5.
 - **Geometry inputs are picked, not only wired:** a pick is a manual value `{"pick": [ids]}` resolved to the objects'
   current geometry on each solve, and Rhino object events re-solve the node, like Grasshopper's own referenced params.
 - **Describe-a-node:**
@@ -169,8 +183,15 @@ installer/              windows/Alien.nsi + settings.ps1 (NSIS Setup.exe), mac/ 
   work; draw other UI on the canvas (the address suggestion list is painted).
 - **Don't open old .gh files from a script in the user's Rhino:** an AutoSave holding the old AlienNode (v0.2.0) raised
   a modal "Unrecognized Objects" dialog that blocked Rhino (and the MCP) until the user closed it.
-- **Captures of a backgrounded Rhino** don't show display textures or freshly baked objects' shading. Verify materials
-  through the API (or ask the user to look), not from a capture.
+- **Captures of a backgrounded Rhino** don't show freshly baked objects' shading. Grasshopper previews with a
+  render-material `GH_Material` do show their textures in captures (the cedar demo); verify document materials through
+  the API.
+- **`GH_Material(DisplayMaterial)` keeps only the colour** (the bitmap is dropped, and so is any texture added later):
+  make textured preview materials with `GH_Material(RenderMaterial)`, which carries the material's XML through wires
+  and files. Grasshopper previews apply a render texture's WCS repeat thousands of times over (moire), so preview
+  materials map by texture coordinates and geometry gets real-size ones (`demos/texture_mapping.py`).
+- **Never block Rhino's UI thread on a task that needs it:** a `run_code` snippet that `.Wait()`s on a `Task` calling
+  `UiThread.Run` (e.g. the building tool) deadlocks Rhino. Start the task, return, and poll a file it writes.
 
 ## Releases
 

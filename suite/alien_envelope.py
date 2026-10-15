@@ -1018,11 +1018,13 @@ def _face_info(poly, frame, slope, fall):
             "area": round(plan / math.cos(math.radians(slope)), 4), "plan_area": round(plan, 4)}
 
 
-def build_roof(curve, form, pitch, overhang, gable_overhang, ridge, flip, fascia, rtype, level_z, frame, tol, scale=100):
+def build_roof(curve, form, pitch, overhang, gable_overhang, ridge, flip, fascia, rtype, level_z, frame, tol, scale=100,
+               infill=0.0):
     """
     One roof over a closed outline (model units). Returns a dict: solids [(Brep, material)], lines {kind: [Curve]},
     plan [Curve], record fields, notes. Heights: the roof's underside sits on `level_z` (m) at the outline (the wall
-    line), so the eaves drop overhang * tan(pitch) below it.
+    line), so the eaves drop overhang * tan(pitch) below it. `infill` (m) closes the walls up to the roof's underside
+    where it rises above the level at the wall line (gable ends, skillion sides and high walls), centred on the line.
     """
     u = frame.u
     tol_m = tol / u
@@ -1319,13 +1321,89 @@ def build_roof(curve, form, pitch, overhang, gable_overhang, ridge, flip, fascia
         plan_area = exact_area
         faces_rec[0]["plan_area"] = round(exact_area, 4)
         faces_rec[0]["area"] = round(exact_area / math.cos(math.radians(slope)), 4)
+    infills = []
+    if infill and infill > 0 and form != "flat":
+        for poly in wall_infill(pts, sloped, T * k, level_z):
+            a, b = poly[0], poly[-1]
+            d = _unit(b[0] - a[0], b[1] - a[1])
+            inw = (-d[1], d[0]) if area2d(pts) > 0 else (d[1], -d[0])
+            half = infill / 2.0
+            moved = [(p[0] - inw[0] * half, p[1] - inw[1] * half, p[2]) for p in poly]
+            infills.append((_panel(moved, infill, inw, frame, tol), "cladding", "infill"))
     zs = [p[2] for poly, _ in sloped for p in poly]
     return {
-        "form": form, "solids": [(b, m, fn) for b, m, fn in solids + trims + gablets if b is not None], "lines": lines, "plan": plan,
+        "form": form, "solids": [(b, m, fn) for b, m, fn in solids + trims + gablets + infills if b is not None], "lines": lines, "plan": plan,
         "faces": faces_rec, "footprint": fp, "outline": pts, "notes": notes, "thickness": T,
         "eave": min(zs) if zs else level_z, "ridge": max(zs) if zs else level_z,
         "area": sum(f["area"] for f in faces_rec), "plan_area": plan_area,
     }
+
+
+def wall_infill(pts, sloped, thick, level_z, gap=0.02):
+    """Vertical infill polygons (frame metres) along the wall line pts, from level_z up to the roof's underside wherever
+    the underside rises more than `gap` above it: gable triangles, skillion sides and high walls. The underside is the
+    roof faces' top (sloped, absolute z) less the roof's vertical thickness; each edge's profile breaks where it
+    crosses a face boundary (a ridge, a hip), so it follows the faces exactly."""
+    faces = [poly for poly, _ in sloped if len(poly) >= 3]
+
+    def plane_z(poly, x, y):
+        nx = ny = nz = 0.0  # Newell normal
+        for i in range(len(poly)):
+            p, q = poly[i], poly[(i + 1) % len(poly)]
+            nx += (p[1] - q[1]) * (p[2] + q[2])
+            ny += (p[2] - q[2]) * (p[0] + q[0])
+            nz += (p[0] - q[0]) * (p[1] + q[1])
+        if abs(nz) < 1e-12:
+            return None
+        p0 = poly[0]
+        return p0[2] - (nx * (x - p0[0]) + ny * (y - p0[1])) / nz
+
+    def near(poly, x, y, eps=1e-6):
+        if inside(poly, x, y):
+            return True
+        for i in range(len(poly)):
+            (ax, ay), (bx, by) = poly[i - 1][:2], poly[i][:2]
+            ex, ey = bx - ax, by - ay
+            l2 = ex * ex + ey * ey or 1e-18
+            t = max(0.0, min(1.0, ((x - ax) * ex + (y - ay) * ey) / l2))
+            if math.hypot(x - ax - t * ex, y - ay - t * ey) < eps:
+                return True
+        return False
+
+    def under(x, y):
+        zs = [z for z in (plane_z(f, x, y) for f in faces if near(f, x, y)) if z is not None]
+        return (min(zs) - thick) if zs else level_z
+
+    out = []
+    n = len(pts)
+    for i in range(n):
+        a, b = pts[i], pts[(i + 1) % n]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        if math.hypot(dx, dy) < 1e-6:
+            continue
+        ts = {0.0, 1.0}
+        for f in faces:  # where the wall line crosses a face boundary
+            for j in range(len(f)):
+                (px, py), (qx, qy) = f[j - 1][:2], f[j][:2]
+                ex, ey = qx - px, qy - py
+                den = dx * ey - dy * ex
+                if abs(den) < 1e-12:
+                    continue
+                t = ((px - a[0]) * ey - (py - a[1]) * ex) / den
+                v = ((px - a[0]) * dy - (py - a[1]) * dx) / den
+                if 1e-9 < t < 1 - 1e-9 and -1e-9 <= v <= 1 + 1e-9:
+                    ts.add(round(t, 9))
+        prof = [(a[0] + dx * t, a[1] + dy * t, max(level_z, under(a[0] + dx * t, a[1] + dy * t))) for t in sorted(ts)]
+        if max(p[2] for p in prof) - level_z <= gap:
+            continue
+        poly = [(a[0], a[1], level_z)] + [p for p in prof] + [(b[0], b[1], level_z)]
+        clean = []
+        for p in poly:  # drop repeats (profile ends on the level)
+            if not clean or max(abs(p[k] - clean[-1][k]) for k in range(3)) > 1e-9:
+                clean.append(p)
+        if len(clean) >= 3:
+            out.append(clean)
+    return out
 
 
 def _gutter(fp, i, z_top, frame, tol, gutters, width=0.115, depth=0.1):

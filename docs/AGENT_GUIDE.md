@@ -54,6 +54,9 @@ Unknown types become `object` (header warning). Values arrive as RhinoCommon/.NE
 - A list becomes a GH list; a list of lists becomes a data tree (one branch per sub-list).
 - `Polyline` outputs are converted to `PolylineCurve` automatically.
 - Item-access inputs fed with lists make Grasshopper run the script once per item (`runs` in the report).
+- Curve and Line inputs take points as their manual value (`set_values`), in model units: `[[x,y,z],[x,y,z]]` is a
+  line, more points a polyline (repeat the first to close it); a list input also takes several:
+  `[[[0,0,0],[4,0,0]], [[0,3,0],[4,3,0]]]`. Geometry inputs can also be picked in Rhino (`{"pick": [ids]}`).
 - Python only: set `NODE_CONTROLS = {"width": {"min": 0.35, "max": 1.45, "value": 0.72, "decimals": 2, "key": "..."}}`
   to retune a slider after a run: its range, the value it shows while unset (e.g. "0 = as built" showing the built
   size), and a `key` naming what the value belongs to. When a run reports a different key, values set under the old
@@ -133,6 +136,13 @@ curtain_panel, slab_type, slab, roof_type, roof, stair_type, stair, balustrade_t
 window_type; the fields are listed at the top of `suite/alien_bim.py` and the helper modules it names. Record inputs
 are typed `object` (no control on the node). Handoffs with different pin names: `stairs.voids` -> `slabs.openings`,
 `stairs.edges` or `slabs.edges` -> `balustrades.path`, `section_profile.profile` -> `beams_columns.beam`/`column`.
+
+A whole building lines up only when every element follows one footprint: wire `grids.edges` -> `walls.path` and
+`grids.outline` -> `slabs.outline`, `roofs.outline` and `levels.outline` (unwired, each node draws its own sample
+room). `walls` with `base` = `all` builds every storey; its wall records then come four a storey in the edges' order
+(front, left, back, right), which doors' and windows' `wall` input takes by index. Never model a building, or several
+of these elements, in one new node: the suite already has them, and the panel's project agent places the whole chain
+with its building tool.
 
 ## Rhino
 - `doc()` first: file, units, tolerance, counts, selection, active view, Grasshopper state, versions.

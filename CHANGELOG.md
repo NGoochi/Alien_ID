@@ -11,6 +11,16 @@ for macOS; Windows builds from the same code but hasn't been tested on a Windows
   ones, wires, sets inputs, edits scripts, deletes, inspects results and captures the viewport to check its work. Tool
   steps show as chips; Stop cancels; it won't press Generate buttons unless asked; its changes can be undone. Model:
   setting `agentModel` (default Claude Sonnet 5.5).
+- **Buildings from suite nodes, not one big node:** a building request ("a two-storey house with a structural frame")
+  now places the building suite as one wired group on one footprint: site, levels, grids, wall/slab/roof types,
+  walls on every storey, a front door, windows in the middle of each grid bay, slabs, the roof, a frame on the grids,
+  stairs with their floor voids and balustrades, and one preview in the materials' colours. Free (no model calls),
+  about 8 s. "Make it three storeys with a hip roof" rebuilds that group in place, keeping hand-made tweaks. The
+  agent shows a picture of the result and says what isn't modelled (interior walls, fittings).
+- **Guardrails:** the agent can't describe a whole building, or three or more building elements, into one generated
+  node (it is sent to the building suite instead), writes at most two new nodes a request, and can't hand-write a node
+  over 150 lines. Placing a whole building's worth of suite nodes by hand is redirected to the building tool, since
+  unwired suite nodes each draw their own sample.
 - **Start here:** the library opens with the base nodes (blank node, 3D object, 2D object, symbol, material, display
   mode, views, layout, exploded axo), and a new **Create** category holds the generators.
 - **Objects library** (was *Generated*): adds 2D objects, symbols, display modes and **building types** (wall, slab,
@@ -26,6 +36,19 @@ for macOS; Windows builds from the same code but hasn't been tested on a Windows
   `stair_types`, `stairs`, `balustrade_types`, `balustrades` (first-pass NCC checks), `section_profile`, `object_2d`,
   `symbol`, `display_mode`, `views`, `layout`, `exploded_axo`. `wall_types`, `doors` and `windows` gain Save buttons.
 - MCP `add`, `wire`, `delete` and `set_values` record Grasshopper undo.
+- `grids` outputs the footprint (`outline`, and `edges` as wall lines); `walls` with base `all` repeats the walls on
+  every storey; `roofs` closes gable ends, skillion sides and high walls up to the roof (`infill`).
+- Curve inputs can be set as points (`[[x,y,z],[x,y,z]]`, model units) by agents and `set_values`.
+- MCP `canvas` lists named groups; `capture` can frame a group.
+- **Demo definitions** (`demos/`): site map in greys, 3D objects, 2D entourage, frame and connections, attractor
+  facade, texture to material, exploded axo, framed tower; with demo nodes `spots`, `attractor_facade`,
+  `texture_mapping` and `drape_curves`.
+
+### Fixes
+- `material_texture`: previews now show the texture. Its display material was a `GH_Material` made from a
+  `DisplayMaterial`, which keeps only the colour; it is now made from a render material (texture included, mapped by
+  the geometry's texture coordinates; `texture_mapping` gives any geometry real-size ones).
+- `object_2d`: a drawing on an upright plane (an elevation) stands on it instead of being centred on it.
 
 ## 0.02-alpha (14 Oct 2026)
 

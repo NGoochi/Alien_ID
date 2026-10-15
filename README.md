@@ -43,6 +43,10 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
   library first and suggests or places existing nodes, has describe-a-node write new ones, wires, sets inputs, tests,
   fixes, deletes and captures the viewport to check its work. It never spends your credit on Generate buttons unless
   you ask, and everything it changes can be undone (Cmd/Ctrl+Z).
+  - **Buildings:** "build a two-storey house with a steel frame" places the building suite as one wired group, all on
+    one footprint (site, levels, grids, walls on every storey, doors, windows, slabs, roof, frame, stairs,
+    balustrades), never one big generated node. "Make it three storeys with a hip roof" changes that group in place.
+    Interior walls and fittings aren't included yet; it says so and asks before generating fittings.
 - **Pick geometry in Rhino:** an unwired geometry input (curve, surface, Brep, mesh, point…) shows **Select in Rhino**:
   click it and pick objects in the viewport (or select them first). The node keeps the references and re-solves when
   you move or edit them.
@@ -111,6 +115,9 @@ Save the file, or let the model or an agent edit it, and the node rebuilds its p
 
 - **MCP server** (`http://127.0.0.1:9876/mcp`): agents such as Claude Code or Cursor can place and wire nodes, edit
   scripts, inspect data, capture the viewport and drive Rhino, while you watch.
+- **Demo definitions** ([demos/](demos/README.md)): eight ready-made workflows: a greyscale site map, 3D object
+  generation, 2D entourage, a frame with connection details, an attractor facade, a generated texture as a material, an
+  exploded axo and a framed tower with curtain walls. Copy the folder into your script folder as `demos/`.
 
 ## Install
 
@@ -205,6 +212,8 @@ The server tells the agent how to work (its `initialize` instructions and the `d
 | `docs/docs.json` | The full reference as JSON: every node and its pins, the panel, library, assets, settings, MCP tools (`python3 tools/docs_json.py` rewrites it) |
 | `tests/describe/` | The describe-a-node test (10 prompts, several models) and its results |
 | `tests/bim/` | `chain.py`: places, wires and checks the whole building suite on the open canvas |
+| `tests/agent/` | `run.py` drives the panel's project agent; `building.py` checks its building tool (free) |
+| `demos/`, `tests/demos/` | The demo definitions, their four helper nodes and previews; `build.py` rebuilds and checks them |
 | `tools/` | Shell tools to drive and check a running Rhino (MCP calls, captures, simulated clicks, off-screen panel renders), and `package.sh` (builds the release downloads) |
 | `installer/` | `windows/` (the NSIS script for Setup.exe and its settings helper), `mac/` (the .pkg definition and pages), `art/` (icon and wizard images drawn from the mark), INSTALL.md, and the by-hand scripts for the zip |
 | `docs/brand/` | The Alien mark (SVG) |
